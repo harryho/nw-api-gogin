@@ -1,0 +1,994 @@
+openapi: 3.1.0
+info:
+  title: Northwind Commerce API
+  version: 0.1.0
+  description: REST API for managing Northwind categories, products, and suppliers.
+servers:
+  - url: https://api.example.com
+    description: Production
+  - url: http://localhost:8080
+    description: Local development
+security:
+  - bearerAuth: []
+tags:
+  - name: Categories
+    description: Category management endpoints.
+  - name: Products
+    description: Product management endpoints.
+  - name: Suppliers
+    description: Supplier management endpoints.
+  - name: Auth
+    description: Authentication endpoints.
+paths:
+  /auth/token:
+    post:
+      tags: [Auth]
+      summary: Issue JWT token
+      operationId: issueToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenRequest'
+      responses:
+        '200':
+          description: Token issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '400':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /categories:
+    get:
+      tags: [Categories]
+      summary: List categories
+      operationId: listCategories
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - $ref: '#/components/parameters/SortParam'
+        - name: name
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 80
+          description: Filter categories by name substring.
+      responses:
+        '200':
+          description: Category collection
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoryListResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      security:
+        - bearerAuth:
+            - viewer
+    post:
+      tags: [Categories]
+      summary: Create category
+      operationId: createCategory
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CategoryCreateRequest'
+      responses:
+        '201':
+          description: Category created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+        '400':
+          description: Invalid payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+      security:
+        - bearerAuth:
+            - admin
+        - bearerAuth:
+            - manager
+  /categories/{categoryId}:
+    parameters:
+      - $ref: '#/components/parameters/CategoryIdParam'
+    get:
+      tags: [Categories]
+      summary: Get category by ID
+      operationId: getCategory
+      responses:
+        '200':
+          description: Category details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Category not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      security:
+        - bearerAuth:
+            - viewer
+    put:
+      tags: [Categories]
+      summary: Update category
+      operationId: updateCategory
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CategoryUpdateRequest'
+      responses:
+        '200':
+          description: Category updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+        '400':
+          description: Invalid payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Category not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+      security:
+        - bearerAuth:
+            - admin
+        - bearerAuth:
+            - manager
+    delete:
+      tags: [Categories]
+      summary: Delete category
+      operationId: deleteCategory
+      responses:
+        '204':
+          description: Category deleted
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Category not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      security:
+        - bearerAuth:
+            - admin
+  /products:
+    get:
+      tags: [Products]
+      summary: List products
+      operationId: listProducts
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - $ref: '#/components/parameters/SortParam'
+        - name: name
+          in: query
+          schema:
+            type: string
+            maxLength: 120
+          description: Filter products by name substring.
+        - name: categoryId
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+          description: Filter products by category identifier.
+        - name: supplierId
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+          description: Filter products by supplier identifier.
+        - name: discontinued
+          in: query
+          schema:
+            type: boolean
+          description: Filter products by discontinued flag.
+      responses:
+        '200':
+          description: Product collection
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductListResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      security:
+        - bearerAuth:
+            - viewer
+    post:
+      tags: [Products]
+      summary: Create product
+      operationId: createProduct
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductCreateRequest'
+      responses:
+        '201':
+          description: Product created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '400':
+          description: Invalid payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Category or supplier not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+      security:
+        - bearerAuth:
+            - admin
+        - bearerAuth:
+            - manager
+  /products/{productId}:
+    parameters:
+      - $ref: '#/components/parameters/ProductIdParam'
+    get:
+      tags: [Products]
+      summary: Get product by ID
+      operationId: getProduct
+      responses:
+        '200':
+          description: Product details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Product not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      security:
+        - bearerAuth:
+            - viewer
+    put:
+      tags: [Products]
+      summary: Update product
+      operationId: updateProduct
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductUpdateRequest'
+      responses:
+        '200':
+          description: Product updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '400':
+          description: Invalid payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Product not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+      security:
+        - bearerAuth:
+            - admin
+        - bearerAuth:
+            - manager
+    delete:
+      tags: [Products]
+      summary: Delete product
+      operationId: deleteProduct
+      responses:
+        '204':
+          description: Product deleted
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Product not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      security:
+        - bearerAuth:
+            - admin
+  /suppliers:
+    get:
+      tags: [Suppliers]
+      summary: List suppliers
+      operationId: listSuppliers
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - $ref: '#/components/parameters/SortParam'
+        - name: companyName
+          in: query
+          schema:
+            type: string
+            maxLength: 100
+          description: Filter suppliers by company name substring.
+        - name: country
+          in: query
+          schema:
+            type: string
+            maxLength: 50
+          description: Filter suppliers by country.
+      responses:
+        '200':
+          description: Supplier collection
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupplierListResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      security:
+        - bearerAuth:
+            - viewer
+    post:
+      tags: [Suppliers]
+      summary: Create supplier
+      operationId: createSupplier
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SupplierCreateRequest'
+      responses:
+        '201':
+          description: Supplier created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Supplier'
+        '400':
+          description: Invalid payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+      security:
+        - bearerAuth:
+            - admin
+        - bearerAuth:
+            - manager
+  /suppliers/{supplierId}:
+    parameters:
+      - $ref: '#/components/parameters/SupplierIdParam'
+    get:
+      tags: [Suppliers]
+      summary: Get supplier by ID
+      operationId: getSupplier
+      responses:
+        '200':
+          description: Supplier details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Supplier'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Supplier not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      security:
+        - bearerAuth:
+            - viewer
+    put:
+      tags: [Suppliers]
+      summary: Update supplier
+      operationId: updateSupplier
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SupplierUpdateRequest'
+      responses:
+        '200':
+          description: Supplier updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Supplier'
+        '400':
+          description: Invalid payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Supplier not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+      security:
+        - bearerAuth:
+            - admin
+        - bearerAuth:
+            - manager
+    delete:
+      tags: [Suppliers]
+      summary: Delete supplier
+      operationId: deleteSupplier
+      responses:
+        '204':
+          description: Supplier deleted
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Supplier not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      security:
+        - bearerAuth:
+            - admin
+components:
+  parameters:
+    PageParam:
+      name: page
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+      description: Page number to return.
+    PageSizeParam:
+      name: pageSize
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+      description: Maximum number of records per page.
+    SortParam:
+      name: sort
+      in: query
+      required: false
+      schema:
+        type: string
+      description: Sort expression, prefix field with '-' for descending order.
+    CategoryIdParam:
+      name: categoryId
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+    ProductIdParam:
+      name: productId
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+    SupplierIdParam:
+      name: supplierId
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+  securitySchemes:
+    bearerAuth:
+      type: oauth2
+      flows:
+        password:
+          tokenUrl: /auth/token
+          scopes:
+            admin: Full administrative access.
+            manager: Manage catalog data.
+            viewer: Read-only catalog access.
+  schemas:
+    PaginationMeta:
+      type: object
+      required: [page, pageSize, totalPages, totalItems]
+      properties:
+        page:
+          type: integer
+          minimum: 1
+        pageSize:
+          type: integer
+          minimum: 1
+        totalPages:
+          type: integer
+          minimum: 0
+        totalItems:
+          type: integer
+          minimum: 0
+    Category:
+      type: object
+      required: [id, name, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+          minimum: 1
+        name:
+          type: string
+          maxLength: 80
+        description:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    CategoryCreateRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          maxLength: 80
+        description:
+          type: string
+          nullable: true
+    CategoryUpdateRequest:
+      allOf:
+        - $ref: '#/components/schemas/CategoryCreateRequest'
+    CategoryListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Category'
+        meta:
+          $ref: '#/components/schemas/PaginationMeta'
+    Supplier:
+      type: object
+      required: [id, companyName, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+          minimum: 1
+        companyName:
+          type: string
+          maxLength: 100
+        contactName:
+          type: string
+          nullable: true
+          maxLength: 100
+        contactTitle:
+          type: string
+          nullable: true
+          maxLength: 100
+        address:
+          type: string
+          nullable: true
+        city:
+          type: string
+          nullable: true
+          maxLength: 50
+        region:
+          type: string
+          nullable: true
+          maxLength: 50
+        postalCode:
+          type: string
+          nullable: true
+          maxLength: 20
+        country:
+          type: string
+          nullable: true
+          maxLength: 50
+        phone:
+          type: string
+          nullable: true
+          maxLength: 30
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    SupplierCreateRequest:
+      type: object
+      required: [companyName]
+      properties:
+        companyName:
+          type: string
+          maxLength: 100
+        contactName:
+          type: string
+          nullable: true
+          maxLength: 100
+        contactTitle:
+          type: string
+          nullable: true
+          maxLength: 100
+        address:
+          type: string
+          nullable: true
+        city:
+          type: string
+          nullable: true
+          maxLength: 50
+        region:
+          type: string
+          nullable: true
+          maxLength: 50
+        postalCode:
+          type: string
+          nullable: true
+          maxLength: 20
+        country:
+          type: string
+          nullable: true
+          maxLength: 50
+        phone:
+          type: string
+          nullable: true
+          maxLength: 30
+    SupplierUpdateRequest:
+      allOf:
+        - $ref: '#/components/schemas/SupplierCreateRequest'
+    SupplierListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Supplier'
+        meta:
+          $ref: '#/components/schemas/PaginationMeta'
+    Product:
+      type: object
+      required: [id, categoryId, supplierId, name, unitPrice, unitsInStock, discontinued, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+          minimum: 1
+        categoryId:
+          type: integer
+          minimum: 1
+        supplierId:
+          type: integer
+          minimum: 1
+        name:
+          type: string
+          maxLength: 120
+        quantityPerUnit:
+          type: string
+          nullable: true
+          maxLength: 40
+        unitPrice:
+          type: number
+          format: double
+          minimum: 0
+        unitsInStock:
+          type: integer
+          minimum: 0
+        unitsOnOrder:
+          type: integer
+          minimum: 0
+        reorderLevel:
+          type: integer
+          minimum: 0
+        discontinued:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    ProductCreateRequest:
+      type: object
+      required: [categoryId, supplierId, name, unitPrice]
+      properties:
+        categoryId:
+          type: integer
+          minimum: 1
+        supplierId:
+          type: integer
+          minimum: 1
+        name:
+          type: string
+          maxLength: 120
+        quantityPerUnit:
+          type: string
+          nullable: true
+          maxLength: 40
+        unitPrice:
+          type: number
+          format: double
+          minimum: 0
+        unitsInStock:
+          type: integer
+          minimum: 0
+          default: 0
+        unitsOnOrder:
+          type: integer
+          minimum: 0
+          default: 0
+        reorderLevel:
+          type: integer
+          minimum: 0
+          default: 0
+        discontinued:
+          type: boolean
+          default: false
+    ProductUpdateRequest:
+      allOf:
+        - $ref: '#/components/schemas/ProductCreateRequest'
+    ProductListResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Product'
+        meta:
+          $ref: '#/components/schemas/PaginationMeta'
+    ErrorResponse:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        traceId:
+          type: string
+          nullable: true
+          description: Correlation or trace identifier.
+    ValidationErrorResponse:
+      allOf:
+        - $ref: '#/components/schemas/ErrorResponse'
+        - type: object
+          properties:
+            errors:
+              type: array
+              items:
+                type: object
+                required: [field, message]
+                properties:
+                  field:
+                    type: string
+                  message:
+                    type: string
+    TokenRequest:
+      type: object
+      required: [username, password, scope]
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+          format: password
+        scope:
+          type: string
+          description: Space-delimited scopes requested.
+    TokenResponse:
+      type: object
+      required: [accessToken, tokenType, expiresIn]
+      properties:
+        accessToken:
+          type: string
+        tokenType:
+          type: string
+          example: Bearer
+        expiresIn:
+          type: integer
+          description: Token lifetime in seconds.
+        refreshToken:
+          type: string
+          nullable: true

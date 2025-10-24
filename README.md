@@ -29,6 +29,11 @@ graph TD
 - `scripts/` automation helpers for local and CI workflows
 - `docs/` architecture, roadmap, and implementation notes
 - `testdata/` seed and fixture files
+- `api/` OpenAPI specifications and codegen configuration
 
 ## Next Steps
 Follow the roadmap in `docs/implementation-roadmap.md` to execute each phase.
+
+## API Contract
+- The canonical OpenAPI definition lives at `api/openapi.yaml` and models CRUD workflows for categories, products, and suppliers along with JWT scope expectations.
+- Regenerate Gin handlers and types after editing the specification with `make generate` (requires `oapi-codegen` on your `PATH`).
