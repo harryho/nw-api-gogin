@@ -59,3 +59,11 @@ Use the returned `accessToken` in the `Authorization: Bearer <token>` header whe
 - The integration harness exposes Postgres on `DB_PORT` (default `55432`) so it can run alongside a local Postgres instance.
 - `make smoke` exercises the API using `local-test.http`; update `local-test.http` if environment values differ.
 - `k6 run scripts/k6/smoke.js` (or `make k6-smoke`) issues an auth/token request, lists categories, and creates then deletes a category to validate basic flows; the scenario enforces zero failures and a 95th percentile latency under 500ms with default `K6_ITERATIONS=10` and `K6_VUS=1`.
+- `make sbom` generates a CycloneDX SBOM at `sbom/bom.json` using `cyclonedx-gomod`.
+
+## Security & Observability
+- Default response headers include `Content-Security-Policy`, `X-Frame-Options`, `X-Content-Type-Options`, and `Strict-Transport-Security`. Set `DISABLE_HSTS=true` if running over plain HTTP in non-production environments.
+- Rate limiting is enabled per client IP with `RATE_LIMIT_RPS` (default `25`) and `RATE_LIMIT_BURST` (default `50`). Requests beyond the burst window receive `429` responses.
+- Audit logs are emitted for mutating verbs (POST/PUT/PATCH/DELETE) and include subject, scopes, latency, and request identifier.
+- OpenTelemetry tracing is configured via `OTEL_EXPORTER_OTLP_ENDPOINT`, optional `OTEL_EXPORTER_OTLP_HEADERS`, and `OTEL_EXPORTER_OTLP_INSECURE=true` when sending to an insecure collector. Service identity defaults can be tuned with `SERVICE_NAME`, `SERVICE_VERSION`, and `APP_ENV`.
+- A scheduled `govulncheck` workflow scans dependencies weekly; SBOM artifacts are generated in CI for downstream transparency.

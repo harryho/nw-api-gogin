@@ -51,11 +51,18 @@ jobs:
         run: go run ./cmd/migrate --action up
       - name: Run tests
         run: go test ./... -coverprofile=coverage.out
+      - name: Generate SBOM
+        run: make sbom
       - name: Upload coverage
         uses: actions/upload-artifact@v4
         with:
           name: coverage
           path: coverage.out
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom/bom.json
 
   k6-smoke:
     runs-on: ubuntu-latest
@@ -100,9 +107,9 @@ jobs:
           echo "API did not become ready" >&2
           docker compose logs api
           exit 1
-      - uses: grafana/setup-k6@v1
+      - uses: grafana/setup-k6-action@v1
         with:
-          version: v0.49.0
+          k6-version: v0.49.0
       - name: Run k6 smoke test
         env:
           BASE_URL: http://localhost:8080

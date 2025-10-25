@@ -1,4 +1,4 @@
-.PHONY: lint test build migrate seed smoke coverage fmt generate integration k6-smoke
+.PHONY: lint test build migrate seed smoke coverage fmt generate integration k6-smoke sbom
 
 GO ?= go
 GOLANGCI_LINT ?= golangci-lint
@@ -40,3 +40,6 @@ integration:
 
 k6-smoke:
 	BASE_URL=$(BASE_URL) AUTH_ADMIN_USERNAME=$(AUTH_ADMIN_USERNAME) AUTH_ADMIN_PASSWORD=$(AUTH_ADMIN_PASSWORD) k6 run scripts/k6/smoke.js
+
+sbom:
+	./scripts/generate-sbom.sh

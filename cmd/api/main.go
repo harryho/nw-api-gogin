@@ -4,12 +4,14 @@ import (
 	"context"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	ginmiddleware "github.com/oapi-codegen/gin-middleware"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 	"go.uber.org/zap"
 
 	"github.com/glb/nw-api-gogin/internal/api"
@@ -19,6 +21,7 @@ import (
 	httpmw "github.com/glb/nw-api-gogin/internal/http/middleware"
 	"github.com/glb/nw-api-gogin/pkg/logger"
 	"github.com/glb/nw-api-gogin/pkg/metrics"
+	"github.com/glb/nw-api-gogin/pkg/telemetry"
 )
 
 func main() {
@@ -29,6 +32,26 @@ func main() {
 		panic(err)
 	}
 	defer logger.Sync(appLog)
+
+	otelShutdown, err := telemetry.Setup(context.Background(), telemetry.Config{
+		Endpoint:       strings.TrimSpace(os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")),
+		Headers:        parseHeaders(os.Getenv("OTEL_EXPORTER_OTLP_HEADERS")),
+		Insecure:       strings.EqualFold(strings.TrimSpace(os.Getenv("OTEL_EXPORTER_OTLP_INSECURE")), "true"),
+		ServiceName:    envOrDefault("SERVICE_NAME", "northwind-api"),
+		ServiceVersion: envOrDefault("SERVICE_VERSION", "development"),
+		Environment:    envOrDefault("APP_ENV", "local"),
+	}, appLog.Named("telemetry"))
+	if err != nil {
+		appLog.Warn("failed to configure telemetry", zap.Error(err))
+	} else {
+		defer func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if shutdownErr := otelShutdown(ctx); shutdownErr != nil {
+				appLog.Warn("failed to shutdown telemetry", zap.Error(shutdownErr))
+			}
+		}()
+	}
 
 	dbCfg := db.LoadConfig()
 	gormDB, err := db.Connect(dbCfg)
@@ -115,12 +138,32 @@ func main() {
 	}
 
 	httpMetrics := metrics.NewHTTPMetrics(nil)
+	rateLimitRPS := envAsFloat("RATE_LIMIT_RPS", 25)
+	rateLimitBurst := envAsInt("RATE_LIMIT_BURST", 50)
+
+	securityCfg := httpmw.DefaultSecurityConfig()
+	if strings.EqualFold(envOrDefault("DISABLE_HSTS", "false"), "true") {
+		securityCfg.StrictTransportSecurity = ""
+	}
 
 	r := gin.New()
 	r.Use(gin.Recovery())
 	r.Use(httpmw.RequestID())
+	r.Use(otelgin.Middleware(envOrDefault("SERVICE_NAME", "northwind-api")))
+	r.Use(httpmw.SecurityHeaders(securityCfg))
+	r.Use(httpmw.RateLimit(appLog.Named("ratelimit"), httpmw.RateLimitConfig{
+		RequestsPerSecond: rateLimitRPS,
+		Burst:             rateLimitBurst,
+		TTL:               15 * time.Minute,
+	}))
 	r.Use(httpMetrics.Middleware())
 	r.Use(httpmw.Logging(appLog))
+	r.Use(httpmw.Audit(appLog.Named("audit"), func(c *gin.Context) (string, []string) {
+		if principal, ok := api.PrincipalFromContext(c); ok {
+			return principal.Subject, principal.Scopes
+		}
+		return "", nil
+	}))
 
 	swagger, err := api.GetSwagger()
 	if err != nil {
@@ -174,6 +217,54 @@ func envOrDefault(key, fallback string) string {
 		return val
 	}
 	return fallback
+}
+
+func envAsFloat(key string, fallback float64) float64 {
+	val := strings.TrimSpace(os.Getenv(key))
+	if val == "" {
+		return fallback
+	}
+	parsed, err := strconv.ParseFloat(val, 64)
+	if err != nil {
+		return fallback
+	}
+	return parsed
+}
+
+func envAsInt(key string, fallback int) int {
+	val := strings.TrimSpace(os.Getenv(key))
+	if val == "" {
+		return fallback
+	}
+	parsed, err := strconv.Atoi(val)
+	if err != nil {
+		return fallback
+	}
+	return parsed
+}
+
+func parseHeaders(raw string) map[string]string {
+	result := make(map[string]string)
+	for _, pair := range strings.Split(raw, ",") {
+		p := strings.TrimSpace(pair)
+		if p == "" {
+			continue
+		}
+		kv := strings.SplitN(p, "=", 2)
+		if len(kv) != 2 {
+			continue
+		}
+		key := strings.TrimSpace(kv[0])
+		value := strings.TrimSpace(kv[1])
+		if key == "" || value == "" {
+			continue
+		}
+		result[key] = value
+	}
+	if len(result) == 0 {
+		return nil
+	}
+	return result
 }
 
 func serverAddress() string {
