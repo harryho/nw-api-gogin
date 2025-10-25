@@ -52,3 +52,10 @@ curl -s \
 ```
 
 Use the returned `accessToken` in the `Authorization: Bearer <token>` header when calling protected endpoints.
+
+## Testing & Quality Gates
+- `make test` runs the Go unit and integration suite.
+- `make integration` spins up PostgreSQL via Docker Compose, runs database migrations, and executes the catalog integration suite against the real database (requires Docker).
+- The integration harness exposes Postgres on `DB_PORT` (default `55432`) so it can run alongside a local Postgres instance.
+- `make smoke` exercises the API using `local-test.http`; update `local-test.http` if environment values differ.
+- `k6 run scripts/k6/smoke.js` (or `make k6-smoke`) issues an auth/token request, lists categories, and creates then deletes a category to validate basic flows; the scenario enforces zero failures and a 95th percentile latency under 500ms with default `K6_ITERATIONS=10` and `K6_VUS=1`.

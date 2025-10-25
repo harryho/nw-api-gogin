@@ -1,0 +1,53 @@
+@baseUrl = http://localhost:8080
+@authUsername = admin
+@authPassword = changeit
+
+### Health Check
+# @name health
+GET {{baseUrl}}/healthz
+
+### Obtain Viewer Token
+# @name viewerToken
+POST {{baseUrl}}/auth/token
+Content-Type: application/json
+
+{
+  "username": "{{authUsername}}",
+  "password": "{{authPassword}}",
+  "scope": "viewer"
+}
+
+> {% client.global.set("viewerToken", response.body.accessToken); %}
+
+### List Categories (viewer scope)
+# @name listCategories
+GET {{baseUrl}}/categories
+Authorization: Bearer {{viewerToken}}
+
+### Obtain Admin Token
+# @name adminToken
+POST {{baseUrl}}/auth/token
+Content-Type: application/json
+
+{
+  "username": "{{authUsername}}",
+  "password": "{{authPassword}}",
+  "scope": "admin"
+}
+
+> {% client.global.set("adminToken", response.body.accessToken); %}
+
+### Create Category (admin scope)
+# @name createCategory
+POST {{baseUrl}}/categories
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "name": "CLI Smoke {{$timestamp}}"
+}
+
+### Delete Category (admin scope)
+# @name deleteCategory
+DELETE {{baseUrl}}/categories/{{createCategory.response.body.$.id}}
+Authorization: Bearer {{adminToken}}

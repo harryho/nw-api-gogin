@@ -66,6 +66,21 @@ func TestService_IssueToken_InvalidCredentials(t *testing.T) {
 	}
 }
 
+func TestService_IssueToken_DefaultScopes(t *testing.T) {
+	svc := newTestService(t)
+	token, err := svc.IssueToken(context.Background(), TokenIssueRequest{
+		Username: "alice",
+		Password: "password",
+		Scopes:   nil,
+	})
+	if err != nil {
+		t.Fatalf("issue token failed: %v", err)
+	}
+	if len(token.Scopes) != 1 || token.Scopes[0] != "viewer" {
+		t.Fatalf("expected default viewer scope, got %v", token.Scopes)
+	}
+}
+
 func TestService_ValidateToken_Expired(t *testing.T) {
 	svc := newTestService(t)
 	base := time.Unix(1_000, 0)
@@ -98,6 +113,26 @@ func TestService_ValidateToken_Invalid(t *testing.T) {
 	_, err := svc.ValidateToken(context.Background(), "invalid-token")
 	if err == nil {
 		t.Fatalf("expected error for invalid token")
+	}
+	if appErr, ok := AsError(err); !ok || appErr.Code != ErrorInvalidToken {
+		t.Fatalf("expected invalid token error, got %v", err)
+	}
+}
+
+func TestService_ValidateToken_InvalidAudience(t *testing.T) {
+	svc := newTestService(t)
+	token, err := svc.IssueToken(context.Background(), TokenIssueRequest{
+		Username: "alice",
+		Password: "password",
+	})
+	if err != nil {
+		t.Fatalf("issue token failed: %v", err)
+	}
+
+	svc.cfg.Audience = []string{"different"}
+	_, err = svc.ValidateToken(context.Background(), token.Value)
+	if err == nil {
+		t.Fatalf("expected error for invalid audience")
 	}
 	if appErr, ok := AsError(err); !ok || appErr.Code != ErrorInvalidToken {
 		t.Fatalf("expected invalid token error, got %v", err)
