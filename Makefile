@@ -1,4 +1,4 @@
-.PHONY: lint test build migrate seed smoke coverage fmt generate integration k6-smoke sbom
+.PHONY: lint test build migrate seed smoke coverage fmt generate integration k6-smoke sbom build-lambda package-lambda clean-dist
 
 GO ?= go
 GOLANGCI_LINT ?= golangci-lint
@@ -6,6 +6,9 @@ OAPI_CODEGEN ?= $(shell go env GOPATH)/bin/oapi-codegen
 BASE_URL ?= http://localhost:8080
 AUTH_ADMIN_USERNAME ?= admin
 AUTH_ADMIN_PASSWORD ?= changeit
+DIST_DIR ?= dist
+LAMBDA_BINARY := $(DIST_DIR)/bootstrap
+LAMBDA_ZIP := $(DIST_DIR)/bootstrap.zip
 
 fmt:
 	gofmt -w $(shell find . -name '*.go' -not -path './vendor/*')
@@ -43,3 +46,13 @@ k6-smoke:
 
 sbom:
 	./scripts/generate-sbom.sh
+
+build-lambda:
+	mkdir -p $(DIST_DIR)
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 $(GO) build -o $(LAMBDA_BINARY) ./cmd/lambda
+
+package-lambda: build-lambda
+	zip -j $(LAMBDA_ZIP) $(LAMBDA_BINARY)
+
+clean-dist:
+	rm -rf $(DIST_DIR)

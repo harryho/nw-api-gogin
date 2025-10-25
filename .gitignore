@@ -24,3 +24,9 @@ coverage.out
 
 # Generated SBOM artifacts
 sbom/
+
+# CDK auxiliary files
+infra/cdk/.venv/
+infra/cdk/__pycache__/
+infra/cdk/cdk.out/
+infra/cdk/cdk.context.json
