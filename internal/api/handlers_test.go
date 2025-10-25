@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -225,6 +226,166 @@ func TestHandler_ListProducts_Success(t *testing.T) {
 	}
 }
 
+func TestHandler_CreateProduct_ValidationError(t *testing.T) {
+	stub := &catalogServiceStub{
+		createProductFn: func(ctx context.Context, input catalog.ProductInput) (catalog.Product, error) {
+			return catalog.Product{}, catalog.NewValidationError("unit price required", nil)
+		},
+	}
+
+	handler := NewHandler(stub)
+
+	rec := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(rec)
+	body := bytes.NewBufferString(`{"name":"Prod","categoryId":1,"supplierId":1,"unitPrice":10}`)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/products", body)
+	ctx.Request.Header.Set("Content-Type", "application/json")
+
+	handler.CreateProduct(ctx)
+
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected status 422, got %d", rec.Code)
+	}
+
+	var resp ValidationErrorResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if resp.Code != string(catalog.ErrorValidation) {
+		t.Fatalf("expected validation error code, got %q", resp.Code)
+	}
+}
+
+func TestHandler_CreateProduct_InvalidJSON(t *testing.T) {
+	stub := &catalogServiceStub{}
+
+	handler := NewHandler(stub)
+
+	rec := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(rec)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/products", bytes.NewBufferString("{"))
+	ctx.Request.Header.Set("Content-Type", "application/json")
+
+	handler.CreateProduct(ctx)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected status 400, got %d", rec.Code)
+	}
+	if stub.createProductCalls != 0 {
+		t.Fatalf("expected product creation not to be called, got %d calls", stub.createProductCalls)
+	}
+}
+
+func TestHandler_DeleteProduct_NotFound(t *testing.T) {
+	stub := &catalogServiceStub{
+		deleteProductFn: func(ctx context.Context, id int) error {
+			return catalog.NewNotFoundError("product not found", nil)
+		},
+	}
+
+	handler := NewHandler(stub)
+
+	rec := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(rec)
+	ctx.Request = httptest.NewRequest(http.MethodDelete, "/products/9", nil)
+
+	handler.DeleteProduct(ctx, ProductIdParam(9))
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected status 404, got %d", rec.Code)
+	}
+
+	var resp ErrorResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if resp.Code != string(catalog.ErrorNotFound) {
+		t.Fatalf("expected not found code, got %q", resp.Code)
+	}
+}
+
+func TestHandler_ListSuppliers_Success(t *testing.T) {
+	stub := &catalogServiceStub{
+		listSuppliersFn: func(ctx context.Context, opts catalog.ListOptions, filter catalog.SupplierFilter) (catalog.Page[catalog.Supplier], error) {
+			page := catalog.Pagination{Page: 1, PageSize: 10, TotalItems: 1, TotalPages: 1}
+			suppliers := []catalog.Supplier{{ID: 3, CompanyName: "Contoso"}}
+			return catalog.Page[catalog.Supplier]{Items: suppliers, Meta: page}, nil
+		},
+	}
+
+	handler := NewHandler(stub)
+
+	rec := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(rec)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/suppliers", nil)
+
+	handler.ListSuppliers(ctx, ListSuppliersParams{})
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rec.Code)
+	}
+
+	var resp SupplierListResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if len(resp.Data) != 1 || resp.Data[0].Id != 3 {
+		t.Fatalf("unexpected supplier data: %+v", resp.Data)
+	}
+}
+
+func TestHandler_CreateSupplier_InternalError(t *testing.T) {
+	stub := &catalogServiceStub{
+		createSupplierFn: func(ctx context.Context, input catalog.SupplierInput) (catalog.Supplier, error) {
+			return catalog.Supplier{}, errors.New("database offline")
+		},
+	}
+
+	handler := NewHandler(stub)
+
+	rec := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(rec)
+	body := bytes.NewBufferString(`{"companyName":"Supplier"}`)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/suppliers", body)
+	ctx.Request.Header.Set("Content-Type", "application/json")
+
+	handler.CreateSupplier(ctx)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("expected status 500, got %d", rec.Code)
+	}
+
+	var resp ErrorResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if resp.Code != "internal_error" {
+		t.Fatalf("expected internal error code, got %q", resp.Code)
+	}
+}
+
+func TestHandler_IssueToken_NotImplemented(t *testing.T) {
+	handler := NewHandler(&catalogServiceStub{})
+
+	rec := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(rec)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/auth/token", nil)
+
+	handler.IssueToken(ctx)
+
+	if rec.Code != http.StatusNotImplemented {
+		t.Fatalf("expected status 501, got %d", rec.Code)
+	}
+
+	var resp ErrorResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if resp.Code != "not_implemented" {
+		t.Fatalf("expected not_implemented code, got %q", resp.Code)
+	}
+}
+
 type catalogServiceStub struct {
 	listCategoriesFn    func(ctx context.Context, opts catalog.ListOptions, filter catalog.CategoryFilter) (catalog.Page[catalog.Category], error)
 	createCategoryFn    func(ctx context.Context, input catalog.CategoryInput) (catalog.Category, error)
@@ -232,10 +393,25 @@ type catalogServiceStub struct {
 	updateCategoryFn    func(ctx context.Context, id int, input catalog.CategoryInput) (catalog.Category, error)
 	deleteCategoryFn    func(ctx context.Context, id int) error
 	listProductsFn      func(ctx context.Context, opts catalog.ListOptions, filter catalog.ProductFilter) (catalog.Page[catalog.Product], error)
+	getProductFn        func(ctx context.Context, id int) (catalog.Product, error)
+	createProductFn     func(ctx context.Context, input catalog.ProductInput) (catalog.Product, error)
+	updateProductFn     func(ctx context.Context, id int, input catalog.ProductInput) (catalog.Product, error)
+	deleteProductFn     func(ctx context.Context, id int) error
+	listSuppliersFn     func(ctx context.Context, opts catalog.ListOptions, filter catalog.SupplierFilter) (catalog.Page[catalog.Supplier], error)
+	getSupplierFn       func(ctx context.Context, id int) (catalog.Supplier, error)
+	createSupplierFn    func(ctx context.Context, input catalog.SupplierInput) (catalog.Supplier, error)
+	updateSupplierFn    func(ctx context.Context, id int, input catalog.SupplierInput) (catalog.Supplier, error)
+	deleteSupplierFn    func(ctx context.Context, id int) error
 	listCategoriesCalls int
 	createCategoryCalls int
 	getCategoryCalls    int
 	deleteCategoryCalls int
+	createProductCalls  int
+	deleteProductCalls  int
+	listProductsCalls   int
+	createSupplierCalls int
+	listSuppliersCalls  int
+	deleteSupplierCalls int
 }
 
 func (s *catalogServiceStub) ListCategories(ctx context.Context, opts catalog.ListOptions, filter catalog.CategoryFilter) (catalog.Page[catalog.Category], error) {
@@ -278,6 +454,7 @@ func (s *catalogServiceStub) DeleteCategory(ctx context.Context, id int) error {
 }
 
 func (s *catalogServiceStub) ListProducts(ctx context.Context, opts catalog.ListOptions, filter catalog.ProductFilter) (catalog.Page[catalog.Product], error) {
+	s.listProductsCalls++
 	if s.listProductsFn == nil {
 		return catalog.Page[catalog.Product]{}, nil
 	}
@@ -285,37 +462,69 @@ func (s *catalogServiceStub) ListProducts(ctx context.Context, opts catalog.List
 }
 
 func (s *catalogServiceStub) GetProduct(ctx context.Context, id int) (catalog.Product, error) {
-	panic("not implemented")
+	if s.getProductFn == nil {
+		return catalog.Product{}, nil
+	}
+	return s.getProductFn(ctx, id)
 }
 
 func (s *catalogServiceStub) CreateProduct(ctx context.Context, input catalog.ProductInput) (catalog.Product, error) {
-	panic("not implemented")
+	s.createProductCalls++
+	if s.createProductFn == nil {
+		return catalog.Product{}, nil
+	}
+	return s.createProductFn(ctx, input)
 }
 
 func (s *catalogServiceStub) UpdateProduct(ctx context.Context, id int, input catalog.ProductInput) (catalog.Product, error) {
-	panic("not implemented")
+	if s.updateProductFn == nil {
+		return catalog.Product{}, nil
+	}
+	return s.updateProductFn(ctx, id, input)
 }
 
 func (s *catalogServiceStub) DeleteProduct(ctx context.Context, id int) error {
-	panic("not implemented")
+	s.deleteProductCalls++
+	if s.deleteProductFn == nil {
+		return nil
+	}
+	return s.deleteProductFn(ctx, id)
 }
 
 func (s *catalogServiceStub) ListSuppliers(ctx context.Context, opts catalog.ListOptions, filter catalog.SupplierFilter) (catalog.Page[catalog.Supplier], error) {
-	panic("not implemented")
+	s.listSuppliersCalls++
+	if s.listSuppliersFn == nil {
+		return catalog.Page[catalog.Supplier]{}, nil
+	}
+	return s.listSuppliersFn(ctx, opts, filter)
 }
 
 func (s *catalogServiceStub) GetSupplier(ctx context.Context, id int) (catalog.Supplier, error) {
-	panic("not implemented")
+	if s.getSupplierFn == nil {
+		return catalog.Supplier{}, nil
+	}
+	return s.getSupplierFn(ctx, id)
 }
 
 func (s *catalogServiceStub) CreateSupplier(ctx context.Context, input catalog.SupplierInput) (catalog.Supplier, error) {
-	panic("not implemented")
+	s.createSupplierCalls++
+	if s.createSupplierFn == nil {
+		return catalog.Supplier{}, nil
+	}
+	return s.createSupplierFn(ctx, input)
 }
 
 func (s *catalogServiceStub) UpdateSupplier(ctx context.Context, id int, input catalog.SupplierInput) (catalog.Supplier, error) {
-	panic("not implemented")
+	if s.updateSupplierFn == nil {
+		return catalog.Supplier{}, nil
+	}
+	return s.updateSupplierFn(ctx, id, input)
 }
 
 func (s *catalogServiceStub) DeleteSupplier(ctx context.Context, id int) error {
-	panic("not implemented")
+	s.deleteSupplierCalls++
+	if s.deleteSupplierFn == nil {
+		return nil
+	}
+	return s.deleteSupplierFn(ctx, id)
 }

@@ -38,6 +38,15 @@ func newTestService(t *testing.T) (*Service, *gorm.DB) {
 	return svc, db
 }
 
+func closeDatabase(t *testing.T, db *gorm.DB) {
+	t.Helper()
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatalf("failed to access sql DB: %v", err)
+	}
+	_ = sqlDB.Close()
+}
+
 func TestService_CreateCategory_ValidationError(t *testing.T) {
 	svc, _ := newTestService(t)
 
@@ -75,6 +84,20 @@ func TestService_CreateCategory_Success(t *testing.T) {
 	}
 }
 
+func TestService_CreateCategory_InternalError(t *testing.T) {
+	svc, db := newTestService(t)
+	closeDatabase(t, db)
+
+	_, err := svc.CreateCategory(context.Background(), CategoryInput{Name: "Beverages"})
+	if err == nil {
+		t.Fatalf("expected internal error when database unavailable")
+	}
+	appErr, ok := AsError(err)
+	if !ok || appErr.Code != ErrorInternal {
+		t.Fatalf("expected internal error code, got %v", err)
+	}
+}
+
 func TestService_GetCategory_NotFound(t *testing.T) {
 	svc, _ := newTestService(t)
 
@@ -92,6 +115,20 @@ func TestService_GetCategory_NotFound(t *testing.T) {
 	}
 }
 
+func TestService_GetCategory_InternalError(t *testing.T) {
+	svc, db := newTestService(t)
+	closeDatabase(t, db)
+
+	_, err := svc.GetCategory(context.Background(), 1)
+	if err == nil {
+		t.Fatalf("expected internal error when database unavailable")
+	}
+	appErr, ok := AsError(err)
+	if !ok || appErr.Code != ErrorInternal {
+		t.Fatalf("expected internal error code, got %v", err)
+	}
+}
+
 func TestService_ListCategories_InvalidSort(t *testing.T) {
 	svc, _ := newTestService(t)
 
@@ -106,6 +143,20 @@ func TestService_ListCategories_InvalidSort(t *testing.T) {
 	}
 	if appErr.Code != ErrorValidation {
 		t.Fatalf("expected validation error code, got %s", appErr.Code)
+	}
+}
+
+func TestService_ListCategories_InternalError(t *testing.T) {
+	svc, db := newTestService(t)
+	closeDatabase(t, db)
+
+	_, err := svc.ListCategories(context.Background(), ListOptions{}, CategoryFilter{})
+	if err == nil {
+		t.Fatalf("expected internal error when database unavailable")
+	}
+	appErr, ok := AsError(err)
+	if !ok || appErr.Code != ErrorInternal {
+		t.Fatalf("expected internal error code, got %v", err)
 	}
 }
 
@@ -134,6 +185,24 @@ func TestService_UpdateCategory_Success(t *testing.T) {
 	}
 	if stored.Name != "Hot Beverages" {
 		t.Fatalf("expected stored name 'Hot Beverages', got %s", stored.Name)
+	}
+}
+
+func TestService_UpdateCategory_InternalError(t *testing.T) {
+	svc, db := newTestService(t)
+	category, err := svc.CreateCategory(context.Background(), CategoryInput{Name: "Beverages"})
+	if err != nil {
+		t.Fatalf("unexpected create error: %v", err)
+	}
+	closeDatabase(t, db)
+
+	_, err = svc.UpdateCategory(context.Background(), category.ID, CategoryInput{Name: "Updated"})
+	if err == nil {
+		t.Fatalf("expected internal error when database unavailable")
+	}
+	appErr, ok := AsError(err)
+	if !ok || appErr.Code != ErrorInternal {
+		t.Fatalf("expected internal error code, got %v", err)
 	}
 }
 
@@ -182,6 +251,21 @@ func TestService_DeleteCategory_NotFound(t *testing.T) {
 	}
 }
 
+func TestService_DeleteCategory_InternalError(t *testing.T) {
+	svc, db := newTestService(t)
+	category, _ := svc.CreateCategory(context.Background(), CategoryInput{Name: "ToDelete"})
+	closeDatabase(t, db)
+
+	if err := svc.DeleteCategory(context.Background(), category.ID); err == nil {
+		t.Fatalf("expected internal error when database unavailable")
+	} else {
+		appErr, ok := AsError(err)
+		if !ok || appErr.Code != ErrorInternal {
+			t.Fatalf("expected internal error code, got %v", err)
+		}
+	}
+}
+
 func TestService_CreateProduct_Validation(t *testing.T) {
 	svc, _ := newTestService(t)
 
@@ -223,6 +307,28 @@ func TestService_CreateProduct_Success(t *testing.T) {
 	}
 }
 
+func TestService_CreateProduct_InternalError(t *testing.T) {
+	svc, db := newTestService(t)
+	category, _ := svc.CreateCategory(context.Background(), CategoryInput{Name: "Condiments"})
+	supplier, _ := svc.CreateSupplier(context.Background(), SupplierInput{CompanyName: "Acme"})
+	closeDatabase(t, db)
+
+	_, err := svc.CreateProduct(context.Background(), ProductInput{
+		Name:         "Sauce",
+		CategoryID:   category.ID,
+		SupplierID:   supplier.ID,
+		UnitPrice:    10,
+		UnitsInStock: 5,
+	})
+	if err == nil {
+		t.Fatalf("expected internal error when database unavailable")
+	}
+	appErr, ok := AsError(err)
+	if !ok || appErr.Code != ErrorInternal {
+		t.Fatalf("expected internal error code, got %v", err)
+	}
+}
+
 func TestService_UpdateProduct_Success(t *testing.T) {
 	svc, _ := newTestService(t)
 	category, _ := svc.CreateCategory(context.Background(), CategoryInput{Name: "Produce"})
@@ -253,6 +359,91 @@ func TestService_UpdateProduct_Success(t *testing.T) {
 	}
 }
 
+func TestService_UpdateProduct_InvalidCategory(t *testing.T) {
+	svc, _ := newTestService(t)
+	category, _ := svc.CreateCategory(context.Background(), CategoryInput{Name: "Produce"})
+	supplier, _ := svc.CreateSupplier(context.Background(), SupplierInput{CompanyName: "Growers"})
+	product, _ := svc.CreateProduct(context.Background(), ProductInput{
+		Name:         "Apple",
+		CategoryID:   category.ID,
+		SupplierID:   supplier.ID,
+		UnitPrice:    1,
+		UnitsInStock: 1,
+	})
+
+	_, err := svc.UpdateProduct(context.Background(), product.ID, ProductInput{
+		Name:         "Apple",
+		CategoryID:   product.CategoryID + 999,
+		SupplierID:   supplier.ID,
+		UnitPrice:    1,
+		UnitsInStock: 1,
+	})
+	if err == nil {
+		t.Fatalf("expected validation error for invalid category id")
+	}
+	appErr, _ := AsError(err)
+	if appErr == nil || appErr.Code != ErrorValidation {
+		t.Fatalf("expected validation error, got %v", err)
+	}
+}
+
+func TestService_UpdateProduct_InvalidSupplier(t *testing.T) {
+	svc, _ := newTestService(t)
+	category, _ := svc.CreateCategory(context.Background(), CategoryInput{Name: "Produce"})
+	supplier, _ := svc.CreateSupplier(context.Background(), SupplierInput{CompanyName: "Growers"})
+	product, _ := svc.CreateProduct(context.Background(), ProductInput{
+		Name:         "Apple",
+		CategoryID:   category.ID,
+		SupplierID:   supplier.ID,
+		UnitPrice:    1,
+		UnitsInStock: 1,
+	})
+
+	_, err := svc.UpdateProduct(context.Background(), product.ID, ProductInput{
+		Name:         "Apple",
+		CategoryID:   category.ID,
+		SupplierID:   product.SupplierID + 999,
+		UnitPrice:    1,
+		UnitsInStock: 1,
+	})
+	if err == nil {
+		t.Fatalf("expected validation error for invalid supplier id")
+	}
+	appErr, _ := AsError(err)
+	if appErr == nil || appErr.Code != ErrorValidation {
+		t.Fatalf("expected validation error, got %v", err)
+	}
+}
+
+func TestService_UpdateProduct_InternalError(t *testing.T) {
+	svc, db := newTestService(t)
+	category, _ := svc.CreateCategory(context.Background(), CategoryInput{Name: "Produce"})
+	supplier, _ := svc.CreateSupplier(context.Background(), SupplierInput{CompanyName: "Growers"})
+	product, _ := svc.CreateProduct(context.Background(), ProductInput{
+		Name:         "Apple",
+		CategoryID:   category.ID,
+		SupplierID:   supplier.ID,
+		UnitPrice:    1,
+		UnitsInStock: 1,
+	})
+	closeDatabase(t, db)
+
+	_, err := svc.UpdateProduct(context.Background(), product.ID, ProductInput{
+		Name:         "Apple",
+		CategoryID:   category.ID,
+		SupplierID:   supplier.ID,
+		UnitPrice:    2,
+		UnitsInStock: 2,
+	})
+	if err == nil {
+		t.Fatalf("expected internal error when database unavailable")
+	}
+	appErr, ok := AsError(err)
+	if !ok || appErr.Code != ErrorInternal {
+		t.Fatalf("expected internal error code, got %v", err)
+	}
+}
+
 func TestService_DeleteProduct_Success(t *testing.T) {
 	svc, _ := newTestService(t)
 	category, _ := svc.CreateCategory(context.Background(), CategoryInput{Name: "Snacks"})
@@ -280,6 +471,29 @@ func TestService_DeleteProduct_NotFound(t *testing.T) {
 	}
 }
 
+func TestService_DeleteProduct_InternalError(t *testing.T) {
+	svc, db := newTestService(t)
+	category, _ := svc.CreateCategory(context.Background(), CategoryInput{Name: "Snacks"})
+	supplier, _ := svc.CreateSupplier(context.Background(), SupplierInput{CompanyName: "Snack Co"})
+	product, _ := svc.CreateProduct(context.Background(), ProductInput{
+		Name:         "Chips",
+		CategoryID:   category.ID,
+		SupplierID:   supplier.ID,
+		UnitPrice:    2.5,
+		UnitsInStock: 15,
+	})
+	closeDatabase(t, db)
+
+	if err := svc.DeleteProduct(context.Background(), product.ID); err == nil {
+		t.Fatalf("expected internal error when database unavailable")
+	} else {
+		appErr, ok := AsError(err)
+		if !ok || appErr.Code != ErrorInternal {
+			t.Fatalf("expected internal error code, got %v", err)
+		}
+	}
+}
+
 func TestService_ListProducts_Success(t *testing.T) {
 	svc, _ := newTestService(t)
 	category, _ := svc.CreateCategory(context.Background(), CategoryInput{Name: "Produce"})
@@ -301,6 +515,133 @@ func TestService_ListProducts_Success(t *testing.T) {
 	}
 }
 
+func TestService_ListProducts_InvalidSort(t *testing.T) {
+	svc, _ := newTestService(t)
+
+	_, err := svc.ListProducts(context.Background(), ListOptions{Sort: "-unsupported"}, ProductFilter{})
+	if err == nil {
+		t.Fatalf("expected validation error for invalid sort field")
+	}
+	appErr, ok := AsError(err)
+	if !ok || appErr.Code != ErrorValidation {
+		t.Fatalf("expected validation error, got %v", err)
+	}
+}
+
+func TestService_ListProducts_InternalError(t *testing.T) {
+	svc, db := newTestService(t)
+	closeDatabase(t, db)
+
+	_, err := svc.ListProducts(context.Background(), ListOptions{}, ProductFilter{})
+	if err == nil {
+		t.Fatalf("expected internal error when database unavailable")
+	}
+	appErr, ok := AsError(err)
+	if !ok || appErr.Code != ErrorInternal {
+		t.Fatalf("expected internal error code, got %v", err)
+	}
+}
+
+func TestService_GetProduct_Success(t *testing.T) {
+	svc, _ := newTestService(t)
+	category, _ := svc.CreateCategory(context.Background(), CategoryInput{Name: "Beverages"})
+	supplier, _ := svc.CreateSupplier(context.Background(), SupplierInput{CompanyName: "Suppliers"})
+	created, err := svc.CreateProduct(context.Background(), ProductInput{
+		Name:         "Tea",
+		CategoryID:   category.ID,
+		SupplierID:   supplier.ID,
+		UnitPrice:    5,
+		UnitsInStock: 10,
+	})
+	if err != nil {
+		t.Fatalf("unexpected product error: %v", err)
+	}
+
+	product, err := svc.GetProduct(context.Background(), created.ID)
+	if err != nil {
+		t.Fatalf("unexpected get error: %v", err)
+	}
+	if product.ID != created.ID {
+		t.Fatalf("expected product id %d, got %d", created.ID, product.ID)
+	}
+}
+
+func TestService_GetProduct_NotFound(t *testing.T) {
+	svc, _ := newTestService(t)
+
+	_, err := svc.GetProduct(context.Background(), 123)
+	if err == nil {
+		t.Fatalf("expected not found error")
+	}
+	appErr, ok := AsError(err)
+	if !ok || appErr.Code != ErrorNotFound {
+		t.Fatalf("expected not found error, got %v", err)
+	}
+}
+
+func TestService_GetProduct_InternalError(t *testing.T) {
+	svc, db := newTestService(t)
+	category, _ := svc.CreateCategory(context.Background(), CategoryInput{Name: "Beverages"})
+	supplier, _ := svc.CreateSupplier(context.Background(), SupplierInput{CompanyName: "Suppliers"})
+	product, _ := svc.CreateProduct(context.Background(), ProductInput{
+		Name:         "Tea",
+		CategoryID:   category.ID,
+		SupplierID:   supplier.ID,
+		UnitPrice:    5,
+		UnitsInStock: 10,
+	})
+	closeDatabase(t, db)
+
+	_, err := svc.GetProduct(context.Background(), product.ID)
+	if err == nil {
+		t.Fatalf("expected internal error when database unavailable")
+	}
+	appErr, ok := AsError(err)
+	if !ok || appErr.Code != ErrorInternal {
+		t.Fatalf("expected internal error code, got %v", err)
+	}
+}
+
+func TestService_CreateProduct_InvalidCategory(t *testing.T) {
+	svc, _ := newTestService(t)
+	supplier, _ := svc.CreateSupplier(context.Background(), SupplierInput{CompanyName: "Supplier"})
+
+	_, err := svc.CreateProduct(context.Background(), ProductInput{
+		Name:         "Item",
+		CategoryID:   999,
+		SupplierID:   supplier.ID,
+		UnitPrice:    1,
+		UnitsInStock: 1,
+	})
+	if err == nil {
+		t.Fatalf("expected validation error for invalid category")
+	}
+	appErr, _ := AsError(err)
+	if appErr == nil || appErr.Code != ErrorValidation {
+		t.Fatalf("expected validation error, got %v", err)
+	}
+}
+
+func TestService_CreateProduct_InvalidSupplier(t *testing.T) {
+	svc, _ := newTestService(t)
+	category, _ := svc.CreateCategory(context.Background(), CategoryInput{Name: "Produce"})
+
+	_, err := svc.CreateProduct(context.Background(), ProductInput{
+		Name:         "Item",
+		CategoryID:   category.ID,
+		SupplierID:   777,
+		UnitPrice:    1,
+		UnitsInStock: 1,
+	})
+	if err == nil {
+		t.Fatalf("expected validation error for invalid supplier")
+	}
+	appErr, _ := AsError(err)
+	if appErr == nil || appErr.Code != ErrorValidation {
+		t.Fatalf("expected validation error, got %v", err)
+	}
+}
+
 func TestService_ListSuppliers_Success(t *testing.T) {
 	svc, _ := newTestService(t)
 	_, _ = svc.CreateSupplier(context.Background(), SupplierInput{CompanyName: "Global Supply"})
@@ -314,10 +655,52 @@ func TestService_ListSuppliers_Success(t *testing.T) {
 	}
 }
 
+func TestService_ListSuppliers_InvalidSort(t *testing.T) {
+	svc, _ := newTestService(t)
+
+	_, err := svc.ListSuppliers(context.Background(), ListOptions{Sort: "-unsupported"}, SupplierFilter{})
+	if err == nil {
+		t.Fatalf("expected validation error for invalid sort field")
+	}
+	appErr, ok := AsError(err)
+	if !ok || appErr.Code != ErrorValidation {
+		t.Fatalf("expected validation error, got %v", err)
+	}
+}
+
+func TestService_ListSuppliers_InternalError(t *testing.T) {
+	svc, db := newTestService(t)
+	closeDatabase(t, db)
+
+	_, err := svc.ListSuppliers(context.Background(), ListOptions{}, SupplierFilter{})
+	if err == nil {
+		t.Fatalf("expected internal error when database unavailable")
+	}
+	appErr, ok := AsError(err)
+	if !ok || appErr.Code != ErrorInternal {
+		t.Fatalf("expected internal error code, got %v", err)
+	}
+}
+
 func TestService_GetSupplier_NotFound(t *testing.T) {
 	svc, _ := newTestService(t)
 	if _, err := svc.GetSupplier(context.Background(), 500); err == nil {
 		t.Fatalf("expected not found error")
+	}
+}
+
+func TestService_GetSupplier_InternalError(t *testing.T) {
+	svc, db := newTestService(t)
+	supplier, _ := svc.CreateSupplier(context.Background(), SupplierInput{CompanyName: "Existing"})
+	closeDatabase(t, db)
+
+	_, err := svc.GetSupplier(context.Background(), supplier.ID)
+	if err == nil {
+		t.Fatalf("expected internal error when database unavailable")
+	}
+	appErr, ok := AsError(err)
+	if !ok || appErr.Code != ErrorInternal {
+		t.Fatalf("expected internal error code, got %v", err)
 	}
 }
 
@@ -328,12 +711,33 @@ func TestService_DeleteSupplier_NotFound(t *testing.T) {
 	}
 }
 
+func TestService_DeleteSupplier_InternalError(t *testing.T) {
+	svc, db := newTestService(t)
+	supplier, _ := svc.CreateSupplier(context.Background(), SupplierInput{CompanyName: "Remove"})
+	closeDatabase(t, db)
+
+	if err := svc.DeleteSupplier(context.Background(), supplier.ID); err == nil {
+		t.Fatalf("expected internal error when database unavailable")
+	} else {
+		appErr, ok := AsError(err)
+		if !ok || appErr.Code != ErrorInternal {
+			t.Fatalf("expected internal error code, got %v", err)
+		}
+	}
+}
+
 func TestService_loggerForContext(t *testing.T) {
 	svc, _ := newTestService(t)
 	logger := svc.loggerForContext(context.Background())
 	if logger == nil {
 		t.Fatalf("expected logger instance")
 	}
+
+	svcNilLogger := &Service{repo: svc.repo, logger: nil}
+	if svcNilLogger.loggerForContext(context.Background()) == nil {
+		t.Fatalf("expected fallback logger when base logger nil")
+	}
+
 }
 
 func TestService_CreateSupplier_Success(t *testing.T) {
@@ -351,6 +755,20 @@ func TestService_CreateSupplier_Success(t *testing.T) {
 	}
 }
 
+func TestService_CreateSupplier_InternalError(t *testing.T) {
+	svc, db := newTestService(t)
+	closeDatabase(t, db)
+
+	_, err := svc.CreateSupplier(context.Background(), SupplierInput{CompanyName: "Supply Co"})
+	if err == nil {
+		t.Fatalf("expected internal error when database unavailable")
+	}
+	appErr, ok := AsError(err)
+	if !ok || appErr.Code != ErrorInternal {
+		t.Fatalf("expected internal error code, got %v", err)
+	}
+}
+
 func TestService_UpdateSupplier_Success(t *testing.T) {
 	svc, _ := newTestService(t)
 	supplier, _ := svc.CreateSupplier(context.Background(), SupplierInput{CompanyName: "Old"})
@@ -361,6 +779,21 @@ func TestService_UpdateSupplier_Success(t *testing.T) {
 	}
 	if updated.CompanyName != "New Name" {
 		t.Fatalf("expected updated company name, got %s", updated.CompanyName)
+	}
+}
+
+func TestService_UpdateSupplier_InternalError(t *testing.T) {
+	svc, db := newTestService(t)
+	supplier, _ := svc.CreateSupplier(context.Background(), SupplierInput{CompanyName: "Original"})
+	closeDatabase(t, db)
+
+	_, err := svc.UpdateSupplier(context.Background(), supplier.ID, SupplierInput{CompanyName: "New"})
+	if err == nil {
+		t.Fatalf("expected internal error when database unavailable")
+	}
+	appErr, ok := AsError(err)
+	if !ok || appErr.Code != ErrorInternal {
+		t.Fatalf("expected internal error code, got %v", err)
 	}
 }
 
