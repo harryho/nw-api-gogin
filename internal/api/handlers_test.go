@@ -8,9 +8,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/glb/nw-api-gogin/internal/auth"
 	"github.com/glb/nw-api-gogin/internal/catalog"
 )
 
@@ -27,7 +29,7 @@ func TestHandler_ListCategories_Success(t *testing.T) {
 		},
 	}
 
-	handler := NewHandler(stub)
+	handler := NewHandler(stub, nil)
 
 	rec := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(rec)
@@ -61,7 +63,7 @@ func TestHandler_CreateCategory_ValidationError(t *testing.T) {
 		},
 	}
 
-	handler := NewHandler(stub)
+	handler := NewHandler(stub, nil)
 
 	rec := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(rec)
@@ -87,7 +89,7 @@ func TestHandler_CreateCategory_ValidationError(t *testing.T) {
 func TestHandler_CreateCategory_InvalidJSON(t *testing.T) {
 	stub := &catalogServiceStub{}
 
-	handler := NewHandler(stub)
+	handler := NewHandler(stub, nil)
 
 	rec := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(rec)
@@ -120,7 +122,7 @@ func TestHandler_GetCategory_NotFound(t *testing.T) {
 		},
 	}
 
-	handler := NewHandler(stub)
+	handler := NewHandler(stub, nil)
 
 	rec := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(rec)
@@ -148,7 +150,7 @@ func TestHandler_UpdateCategory_Success(t *testing.T) {
 		},
 	}
 
-	handler := NewHandler(stub)
+	handler := NewHandler(stub, nil)
 
 	rec := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(rec)
@@ -178,7 +180,7 @@ func TestHandler_DeleteCategory_Success(t *testing.T) {
 		},
 	}
 
-	handler := NewHandler(stub)
+	handler := NewHandler(stub, nil)
 
 	rec := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(rec)
@@ -205,7 +207,7 @@ func TestHandler_ListProducts_Success(t *testing.T) {
 		},
 	}
 
-	handler := NewHandler(stub)
+	handler := NewHandler(stub, nil)
 
 	rec := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(rec)
@@ -233,7 +235,7 @@ func TestHandler_CreateProduct_ValidationError(t *testing.T) {
 		},
 	}
 
-	handler := NewHandler(stub)
+	handler := NewHandler(stub, nil)
 
 	rec := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(rec)
@@ -259,7 +261,7 @@ func TestHandler_CreateProduct_ValidationError(t *testing.T) {
 func TestHandler_CreateProduct_InvalidJSON(t *testing.T) {
 	stub := &catalogServiceStub{}
 
-	handler := NewHandler(stub)
+	handler := NewHandler(stub, nil)
 
 	rec := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(rec)
@@ -283,7 +285,7 @@ func TestHandler_DeleteProduct_NotFound(t *testing.T) {
 		},
 	}
 
-	handler := NewHandler(stub)
+	handler := NewHandler(stub, nil)
 
 	rec := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(rec)
@@ -313,7 +315,7 @@ func TestHandler_ListSuppliers_Success(t *testing.T) {
 		},
 	}
 
-	handler := NewHandler(stub)
+	handler := NewHandler(stub, nil)
 
 	rec := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(rec)
@@ -341,7 +343,7 @@ func TestHandler_CreateSupplier_InternalError(t *testing.T) {
 		},
 	}
 
-	handler := NewHandler(stub)
+	handler := NewHandler(stub, nil)
 
 	rec := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(rec)
@@ -365,7 +367,7 @@ func TestHandler_CreateSupplier_InternalError(t *testing.T) {
 }
 
 func TestHandler_IssueToken_NotImplemented(t *testing.T) {
-	handler := NewHandler(&catalogServiceStub{})
+	handler := NewHandler(&catalogServiceStub{}, nil)
 
 	rec := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(rec)
@@ -383,6 +385,86 @@ func TestHandler_IssueToken_NotImplemented(t *testing.T) {
 	}
 	if resp.Code != "not_implemented" {
 		t.Fatalf("expected not_implemented code, got %q", resp.Code)
+	}
+}
+
+func TestHandler_IssueToken_Success(t *testing.T) {
+	issued := false
+	tokenSvc := &tokenServiceStub{
+		issueTokenFn: func(ctx context.Context, input auth.TokenIssueRequest) (auth.Token, error) {
+			issued = true
+			if input.Username != "user" {
+				t.Fatalf("expected username 'user', got %q", input.Username)
+			}
+			if input.Password != "pass" {
+				t.Fatalf("expected password 'pass', got %q", input.Password)
+			}
+			if len(input.Scopes) != 1 || input.Scopes[0] != "viewer" {
+				t.Fatalf("expected scope 'viewer', got %v", input.Scopes)
+			}
+			return auth.Token{Value: "token123", ExpiresAt: time.Now().Add(time.Hour), Subject: "user", Scopes: []string{"viewer"}}, nil
+		},
+	}
+
+	handler := NewHandler(&catalogServiceStub{}, tokenSvc)
+
+	rec := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(rec)
+	body := bytes.NewBufferString(`{"username":"user","password":"pass","scope":"viewer"}`)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/auth/token", body)
+	ctx.Request.Header.Set("Content-Type", "application/json")
+
+	handler.IssueToken(ctx)
+
+	if !issued {
+		t.Fatalf("expected IssueToken to be called")
+	}
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rec.Code)
+	}
+
+	var resp TokenResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if resp.AccessToken != "token123" {
+		t.Fatalf("expected access token 'token123', got %q", resp.AccessToken)
+	}
+	if resp.TokenType != "Bearer" {
+		t.Fatalf("expected token type 'Bearer', got %q", resp.TokenType)
+	}
+	if resp.ExpiresIn <= 0 {
+		t.Fatalf("expected positive expiresIn, got %d", resp.ExpiresIn)
+	}
+}
+
+func TestHandler_IssueToken_InvalidCredentials(t *testing.T) {
+	tokenSvc := &tokenServiceStub{
+		issueTokenFn: func(ctx context.Context, input auth.TokenIssueRequest) (auth.Token, error) {
+			return auth.Token{}, auth.NewError(auth.ErrorInvalidCredentials, "invalid username or password", nil)
+		},
+	}
+
+	handler := NewHandler(&catalogServiceStub{}, tokenSvc)
+
+	rec := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(rec)
+	body := bytes.NewBufferString(`{"username":"user","password":"bad"}`)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/auth/token", body)
+	ctx.Request.Header.Set("Content-Type", "application/json")
+
+	handler.IssueToken(ctx)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected status 401, got %d", rec.Code)
+	}
+
+	var resp ErrorResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if resp.Code != string(auth.ErrorInvalidCredentials) {
+		t.Fatalf("expected error code %q, got %q", auth.ErrorInvalidCredentials, resp.Code)
 	}
 }
 

@@ -7,9 +7,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
 
+	"github.com/glb/nw-api-gogin/internal/auth"
 	"github.com/glb/nw-api-gogin/internal/catalog"
 )
 
@@ -17,45 +20,64 @@ func TestRegisterHandlers_CoversRoutes(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	router := gin.New()
-	handler := NewHandler(&fullCatalogStub{})
-	RegisterHandlers(router, handler)
+	tokenValue := "router-token"
+	tokenSvc := &tokenServiceStub{
+		issueTokenFn: func(ctx context.Context, input auth.TokenIssueRequest) (auth.Token, error) {
+			return auth.Token{Value: tokenValue, ExpiresAt: time.Now().Add(time.Minute)}, nil
+		},
+		validateTokenFn: func(ctx context.Context, token string) (*auth.Claims, error) {
+			if token != tokenValue {
+				return nil, auth.NewError(auth.ErrorInvalidToken, "invalid token", nil)
+			}
+			return &auth.Claims{
+				Scopes:           []string{"admin", "manager", "viewer"},
+				RegisteredClaims: jwt.RegisteredClaims{Subject: "router-user"},
+			}, nil
+		},
+	}
+	handler := NewHandler(&fullCatalogStub{}, tokenSvc)
+	RegisterHandlersWithOptions(router, handler, GinServerOptions{
+		Middlewares: []MiddlewareFunc{AuthMiddleware(tokenSvc)},
+	})
 
 	testCases := []struct {
-		method string
-		path   string
-		body   string
-		status int
+		method       string
+		path         string
+		body         string
+		status       int
+		requiresAuth bool
 	}{
-		{http.MethodGet, "/categories", "", http.StatusOK},
-		{http.MethodGet, "/categories?page=abc", "", http.StatusBadRequest},
-		{http.MethodGet, "/categories?pageSize=abc", "", http.StatusBadRequest},
-		{http.MethodPost, "/categories", `{"name":"New"}`, http.StatusCreated},
-		{http.MethodGet, "/categories/1", "", http.StatusOK},
-		{http.MethodGet, "/categories/not-a-number", "", http.StatusBadRequest},
-		{http.MethodPut, "/categories/not-a-number", `{"name":"Updated"}`, http.StatusBadRequest},
-		{http.MethodDelete, "/categories/not-a-number", "", http.StatusBadRequest},
-		{http.MethodPut, "/categories/1", `{"name":"Updated"}`, http.StatusOK},
-		{http.MethodDelete, "/categories/1", "", http.StatusNoContent},
-		{http.MethodGet, "/products", "", http.StatusOK},
-		{http.MethodGet, "/products?categoryId=abc", "", http.StatusBadRequest},
-		{http.MethodGet, "/products?supplierId=abc", "", http.StatusBadRequest},
-		{http.MethodGet, "/products?discontinued=maybe", "", http.StatusBadRequest},
-		{http.MethodPost, "/products", `{"name":"Prod","categoryId":1,"supplierId":1,"unitPrice":10}`, http.StatusCreated},
-		{http.MethodGet, "/products/1", "", http.StatusOK},
-		{http.MethodGet, "/products/abc", "", http.StatusBadRequest},
-		{http.MethodPut, "/products/abc", `{"name":"Prod","categoryId":1,"supplierId":1,"unitPrice":12}`, http.StatusBadRequest},
-		{http.MethodDelete, "/products/abc", "", http.StatusBadRequest},
-		{http.MethodPut, "/products/1", `{"name":"Prod","categoryId":1,"supplierId":1,"unitPrice":12}`, http.StatusOK},
-		{http.MethodDelete, "/products/1", "", http.StatusNoContent},
-		{http.MethodGet, "/suppliers", "", http.StatusOK},
-		{http.MethodPost, "/suppliers", `{"companyName":"Supplier"}`, http.StatusCreated},
-		{http.MethodGet, "/suppliers/1", "", http.StatusOK},
-		{http.MethodGet, "/suppliers/bad", "", http.StatusBadRequest},
-		{http.MethodPut, "/suppliers/bad", `{"companyName":"Supplier"}`, http.StatusBadRequest},
-		{http.MethodDelete, "/suppliers/bad", "", http.StatusBadRequest},
-		{http.MethodPut, "/suppliers/1", `{"companyName":"Supplier"}`, http.StatusOK},
-		{http.MethodDelete, "/suppliers/1", "", http.StatusNoContent},
-		{http.MethodPost, "/auth/token", `{"username":"u","password":"p","scope":"viewer"}`, http.StatusNotImplemented},
+		{method: http.MethodGet, path: "/categories", status: http.StatusOK, requiresAuth: true},
+		{method: http.MethodGet, path: "/categories?page=abc", status: http.StatusBadRequest, requiresAuth: true},
+		{method: http.MethodGet, path: "/categories?pageSize=abc", status: http.StatusBadRequest, requiresAuth: true},
+		{method: http.MethodPost, path: "/categories", body: `{"name":"New"}`, status: http.StatusCreated, requiresAuth: true},
+		{method: http.MethodGet, path: "/categories/1", status: http.StatusOK, requiresAuth: true},
+		{method: http.MethodGet, path: "/categories/not-a-number", status: http.StatusBadRequest, requiresAuth: true},
+		{method: http.MethodPut, path: "/categories/not-a-number", body: `{"name":"Updated"}`, status: http.StatusBadRequest, requiresAuth: true},
+		{method: http.MethodDelete, path: "/categories/not-a-number", status: http.StatusBadRequest, requiresAuth: true},
+		{method: http.MethodPut, path: "/categories/1", body: `{"name":"Updated"}`, status: http.StatusOK, requiresAuth: true},
+		{method: http.MethodDelete, path: "/categories/1", status: http.StatusNoContent, requiresAuth: true},
+		{method: http.MethodGet, path: "/products", status: http.StatusOK, requiresAuth: true},
+		{method: http.MethodGet, path: "/products?categoryId=abc", status: http.StatusBadRequest, requiresAuth: true},
+		{method: http.MethodGet, path: "/products?supplierId=abc", status: http.StatusBadRequest, requiresAuth: true},
+		{method: http.MethodGet, path: "/products?discontinued=maybe", status: http.StatusBadRequest, requiresAuth: true},
+		{method: http.MethodPost, path: "/products", body: `{"name":"Prod","categoryId":1,"supplierId":1,"unitPrice":10}`, status: http.StatusCreated, requiresAuth: true},
+		{method: http.MethodGet, path: "/products/1", status: http.StatusOK, requiresAuth: true},
+		{method: http.MethodGet, path: "/products/abc", status: http.StatusBadRequest, requiresAuth: true},
+		{method: http.MethodPut, path: "/products/abc", body: `{"name":"Prod","categoryId":1,"supplierId":1,"unitPrice":12}`, status: http.StatusBadRequest, requiresAuth: true},
+		{method: http.MethodDelete, path: "/products/abc", status: http.StatusBadRequest, requiresAuth: true},
+		{method: http.MethodPut, path: "/products/1", body: `{"name":"Prod","categoryId":1,"supplierId":1,"unitPrice":12}`, status: http.StatusOK, requiresAuth: true},
+		{method: http.MethodDelete, path: "/products/1", status: http.StatusNoContent, requiresAuth: true},
+		{method: http.MethodGet, path: "/suppliers", status: http.StatusOK, requiresAuth: true},
+		{method: http.MethodPost, path: "/suppliers", body: `{"companyName":"Supplier"}`, status: http.StatusCreated, requiresAuth: true},
+		{method: http.MethodGet, path: "/suppliers/1", status: http.StatusOK, requiresAuth: true},
+		{method: http.MethodGet, path: "/suppliers/bad", status: http.StatusBadRequest, requiresAuth: true},
+		{method: http.MethodPut, path: "/suppliers/bad", body: `{"companyName":"Supplier"}`, status: http.StatusBadRequest, requiresAuth: true},
+		{method: http.MethodDelete, path: "/suppliers/bad", status: http.StatusBadRequest, requiresAuth: true},
+		{method: http.MethodPut, path: "/suppliers/1", body: `{"companyName":"Supplier"}`, status: http.StatusOK, requiresAuth: true},
+		{method: http.MethodDelete, path: "/suppliers/1", status: http.StatusNoContent, requiresAuth: true},
+		{method: http.MethodPost, path: "/auth/token", body: `{"username":"u","password":"p","scope":"viewer"}`, status: http.StatusOK, requiresAuth: false},
+		{method: http.MethodGet, path: "/categories", status: http.StatusUnauthorized, requiresAuth: false},
 	}
 
 	for _, tc := range testCases {
@@ -63,12 +85,15 @@ func TestRegisterHandlers_CoversRoutes(t *testing.T) {
 		if tc.body != "" {
 			req.Header.Set("Content-Type", "application/json")
 		}
+		if tc.requiresAuth {
+			req.Header.Set("Authorization", "Bearer "+tokenValue)
+		}
 		resp := httptest.NewRecorder()
 		router.ServeHTTP(resp, req)
 		if resp.Code != tc.status {
 			t.Fatalf("%s %s: expected status %d, got %d", tc.method, tc.path, tc.status, resp.Code)
 		}
-		if tc.status != http.StatusNoContent && tc.status != http.StatusNotImplemented {
+		if tc.status != http.StatusNoContent {
 			var data map[string]any
 			_ = json.Unmarshal(resp.Body.Bytes(), &data)
 		}
@@ -209,7 +234,7 @@ func TestRegisterHandlersWithOptions_MiddlewareAbort(t *testing.T) {
 		},
 	}
 
-	handler := NewHandler(failStub)
+	handler := NewHandler(failStub, nil)
 	router := gin.New()
 	RegisterHandlersWithOptions(router, handler, GinServerOptions{
 		Middlewares: []MiddlewareFunc{

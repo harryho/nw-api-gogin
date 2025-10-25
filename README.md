@@ -37,3 +37,18 @@ Follow the roadmap in `docs/implementation-roadmap.md` to execute each phase.
 ## API Contract
 - The canonical OpenAPI definition lives at `api/openapi.yaml` and models CRUD workflows for categories, products, and suppliers along with JWT scope expectations.
 - Regenerate Gin handlers and types after editing the specification with `make generate` (requires `oapi-codegen` on your `PATH`).
+
+## Authentication
+- All category, product, and supplier routes require a bearer token with the scopes defined in the OpenAPI document (viewer for read, manager for updates, admin for destructive operations).
+- A static administrator account is provided via the environment variables `AUTH_ADMIN_USERNAME` and `AUTH_ADMIN_PASSWORD`; defaults are `admin` / `changeit` for local development only.
+- Signing configuration is controlled through `TOKEN_SECRET`, `TOKEN_KEY_ID`, `TOKEN_TTL`, `TOKEN_AUDIENCE`, and `TOKEN_ISSUER`.
+
+### Obtaining a Token Locally
+```bash
+curl -s \
+  -X POST http://localhost:8080/auth/token \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"admin","password":"changeit","scope":"viewer"}'
+```
+
+Use the returned `accessToken` in the `Authorization: Bearer <token>` header when calling protected endpoints.

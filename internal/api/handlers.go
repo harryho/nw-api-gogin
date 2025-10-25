@@ -3,9 +3,11 @@ package api
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/glb/nw-api-gogin/internal/auth"
 	"github.com/glb/nw-api-gogin/internal/catalog"
 	httpmw "github.com/glb/nw-api-gogin/internal/http/middleware"
 )
@@ -32,14 +34,54 @@ type CatalogService interface {
 
 type Handler struct {
 	catalog CatalogService
+	tokens  TokenService
 }
 
-func NewHandler(catalogService CatalogService) *Handler {
-	return &Handler{catalog: catalogService}
+type TokenService interface {
+	IssueToken(ctx context.Context, input auth.TokenIssueRequest) (auth.Token, error)
+	ValidateToken(ctx context.Context, token string) (*auth.Claims, error)
+}
+
+func NewHandler(catalogService CatalogService, tokenService TokenService) *Handler {
+	return &Handler{catalog: catalogService, tokens: tokenService}
 }
 
 func (h *Handler) IssueToken(c *gin.Context) {
-	h.respondNotImplemented(c)
+	if h.tokens == nil {
+		h.respondNotImplemented(c)
+		return
+	}
+
+	var req TokenRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.decodeError(c)
+		return
+	}
+
+	input := auth.TokenIssueRequest{
+		Username: req.Username,
+		Password: req.Password,
+		Scopes:   auth.ParseScopeString(req.Scope),
+	}
+
+	token, err := h.tokens.IssueToken(c.Request.Context(), input)
+	if err != nil {
+		h.respondError(c, err)
+		return
+	}
+
+	expiresIn := time.Until(token.ExpiresAt)
+	if expiresIn < 0 {
+		expiresIn = 0
+	}
+
+	resp := TokenResponse{
+		AccessToken: token.Value,
+		TokenType:   "Bearer",
+		ExpiresIn:   int(expiresIn.Seconds()),
+	}
+
+	c.JSON(http.StatusOK, resp)
 }
 
 func (h *Handler) ListCategories(c *gin.Context, params ListCategoriesParams) {
@@ -277,6 +319,25 @@ func (h *Handler) respondNotImplemented(c *gin.Context) {
 
 func (h *Handler) respondError(c *gin.Context, err error) {
 	traceID := httpmw.RequestIDFromContext(c.Request.Context())
+
+	if authErr, ok := auth.AsError(err); ok {
+		status := http.StatusInternalServerError
+		switch authErr.Code {
+		case auth.ErrorInvalidCredentials, auth.ErrorInvalidToken:
+			status = http.StatusUnauthorized
+		case auth.ErrorInvalidScope:
+			status = http.StatusBadRequest
+		case auth.ErrorInternal:
+			status = http.StatusInternalServerError
+		}
+
+		resp := ErrorResponse{Code: string(authErr.Code), Message: authErr.Message}
+		if traceID != "" {
+			resp.TraceId = &traceID
+		}
+		c.JSON(status, resp)
+		return
+	}
 
 	if appErr, ok := catalog.AsError(err); ok {
 		status := appErr.Status

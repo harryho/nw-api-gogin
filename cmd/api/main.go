@@ -13,6 +13,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/glb/nw-api-gogin/internal/api"
+	"github.com/glb/nw-api-gogin/internal/auth"
 	"github.com/glb/nw-api-gogin/internal/catalog"
 	"github.com/glb/nw-api-gogin/internal/db"
 	httpmw "github.com/glb/nw-api-gogin/internal/http/middleware"
@@ -42,6 +43,76 @@ func main() {
 
 	repo := catalog.NewRepository(gormDB)
 	catalogService := catalog.NewService(repo, appLog.Named("catalog"))
+
+	tokenSecret := strings.TrimSpace(os.Getenv("TOKEN_SECRET"))
+	if tokenSecret == "" {
+		appLog.Warn("TOKEN_SECRET not set, using development default")
+		tokenSecret = "development-secret"
+	}
+
+	tokenKeyID := strings.TrimSpace(os.Getenv("TOKEN_KEY_ID"))
+	if tokenKeyID == "" {
+		tokenKeyID = "primary"
+	}
+
+	keyManager, err := auth.NewHMACKeyManager([]byte(tokenSecret), tokenKeyID)
+	if err != nil {
+		appLog.Fatal("failed to setup token key manager", zap.Error(err))
+	}
+
+	tokenTTL := time.Hour
+	if rawTTL := strings.TrimSpace(os.Getenv("TOKEN_TTL")); rawTTL != "" {
+		if d, parseErr := time.ParseDuration(rawTTL); parseErr != nil {
+			appLog.Warn("invalid TOKEN_TTL, falling back to default", zap.String("value", rawTTL), zap.Error(parseErr))
+		} else {
+			tokenTTL = d
+		}
+	}
+
+	audience := []string{"northwind-api"}
+	if rawAudience := strings.TrimSpace(os.Getenv("TOKEN_AUDIENCE")); rawAudience != "" {
+		parts := strings.Split(rawAudience, ",")
+		parsed := make([]string, 0, len(parts))
+		for _, part := range parts {
+			if value := strings.TrimSpace(part); value != "" {
+				parsed = append(parsed, value)
+			}
+		}
+		if len(parsed) > 0 {
+			audience = parsed
+		}
+	}
+
+	authUsername := envOrDefault("AUTH_ADMIN_USERNAME", "admin")
+	authPassword := envOrDefault("AUTH_ADMIN_PASSWORD", "changeit")
+	if authUsername == "admin" && authPassword == "changeit" {
+		appLog.Warn("using default admin credentials; set AUTH_ADMIN_USERNAME and AUTH_ADMIN_PASSWORD for production")
+	}
+
+	authenticator, err := auth.NewStaticAuthenticator(map[string]struct {
+		Password  string
+		Principal auth.Principal
+	}{
+		authUsername: {
+			Password: authPassword,
+			Principal: auth.Principal{
+				Subject: authUsername,
+				Scopes:  []string{"admin", "manager", "viewer"},
+			},
+		},
+	})
+	if err != nil {
+		appLog.Fatal("failed to initialize authenticator", zap.Error(err))
+	}
+
+	tokenService, err := auth.NewService(auth.Config{
+		Issuer:         envOrDefault("TOKEN_ISSUER", "northwind-api"),
+		Audience:       audience,
+		AccessTokenTTL: tokenTTL,
+	}, authenticator, keyManager)
+	if err != nil {
+		appLog.Fatal("failed to initialize token service", zap.Error(err))
+	}
 
 	httpMetrics := metrics.NewHTTPMetrics(nil)
 
@@ -76,8 +147,11 @@ func main() {
 
 	r.GET("/metrics", gin.WrapH(promhttp.Handler()))
 
-	h := api.NewHandler(catalogService)
+	h := api.NewHandler(catalogService, tokenService)
 	api.RegisterHandlersWithOptions(r, h, api.GinServerOptions{
+		Middlewares: []api.MiddlewareFunc{
+			api.AuthMiddleware(tokenService),
+		},
 		ErrorHandler: func(c *gin.Context, handlerErr error, statusCode int) {
 			traceID := httpmw.RequestIDFromContext(c.Request.Context())
 			resp := api.ErrorResponse{Code: "invalid_request", Message: handlerErr.Error()}
