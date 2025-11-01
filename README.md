@@ -10,7 +10,7 @@ This project implements a network commerce API built with Go and Gin. It provide
 
 ### Component Diagram
 ```mermaid
-graph TD
+graph LR
   Client -->|HTTPS| APIGW[API Gateway]
   APIGW --> Lambda
   Lambda --> GinRouter[GIN Router]
