@@ -8,6 +8,7 @@
 
 # Go coverage and test outputs
 coverage.out
+**/coverage.out
 *.test
 
 # Environment files
@@ -25,8 +26,20 @@ coverage.out
 # Generated SBOM artifacts
 sbom/
 
-# CDK auxiliary files
-infra/cdk/.venv/
-infra/cdk/__pycache__/
-infra/cdk/cdk.out/
-infra/cdk/cdk.context.json
+# Local-only design docs and plans (kept locally, never published)
+docs/
+
+# Python virtualenvs (name variants)
+venv/
+env/
+
+# Editor backup / autosave files
+*.bak
+*.tmp
+*~
+*.orig
+*.swp
+*.swo
+
+# Runtime logs
+*.log
