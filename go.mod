@@ -5,8 +5,6 @@ go 1.24.0
 toolchain go1.24.5
 
 require (
-	github.com/aws/ v1.44.0
-	github.com/awslabs/-api-proxy v0.16.2
 	github.com/getkin/kin-openapi v0.118.0
 	github.com/gin-gonic/gin v1.11.0
 	github.com/golang-jwt/jwt/v5 v5.3.0

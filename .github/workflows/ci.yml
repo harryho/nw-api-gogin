@@ -53,8 +53,6 @@ jobs:
         run: go test ./... -coverprofile=coverage.out
       - name: Generate SBOM
         run: make sbom
-      - name: Package Lambda artifact
-        run: make package-lambda
       - name: Upload coverage
         uses: actions/upload-artifact@v4
         with:
@@ -65,11 +63,6 @@ jobs:
         with:
           name: sbom
           path: sbom/bom.json
-      - name: Upload Lambda artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: lambda-bootstrap
-          path: dist/bootstrap.zip
 
   k6-smoke:
     runs-on: ubuntu-latest
@@ -132,54 +125,3 @@ jobs:
         if: always()
         run: docker compose down --volumes --remove-orphans
 
-  deploy:
-    runs-on: ubuntu-latest
-    needs:
-      - build
-      - k6-smoke
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.ENABLE_CDK_DEPLOY == 'true'
-    permissions:
-      id-token: write
-      contents: read
-    env:
-      PROVISIONED_CONCURRENCY: ${{ vars.PROVISIONED_CONCURRENCY || '' }}
-      CANARY_PERCENTAGE: ${{ vars.CANARY_PERCENTAGE || '' }}
-      CANARY_INTERVAL: ${{ vars.CANARY_INTERVAL || '' }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          name: lambda-bootstrap
-          path: dist
-      - name: Unpack Lambda artifact
-        run: unzip -o dist/bootstrap.zip -d dist
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "18"
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - name: Install CDK dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r infra/cdk/requirements.txt
-          npm install --global aws-cdk@2
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
-          aws-region: ${{ secrets.AWS_DEPLOY_REGION }}
-      - name: Deploy CDK stack
-        run: |
-          cd infra/cdk
-          PARAMS=""
-          if [ -n "$PROVISIONED_CONCURRENCY" ]; then
-            PARAMS="$PARAMS --parameters NorthwindApiStack:ProvisionedConcurrency=$PROVISIONED_CONCURRENCY"
-          fi
-          if [ -n "$CANARY_PERCENTAGE" ]; then
-            PARAMS="$PARAMS --parameters NorthwindApiStack:CanaryPercentage=$CANARY_PERCENTAGE"
-          fi
-          if [ -n "$CANARY_INTERVAL" ]; then
-            PARAMS="$PARAMS --parameters NorthwindApiStack:CanaryIntervalMinutes=$CANARY_INTERVAL"
-          fi
-           NorthwindApiStack --require-approval never $PARAMS
