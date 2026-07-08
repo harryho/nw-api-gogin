@@ -41,12 +41,12 @@ func setupRouter(t *testing.T) *gin.Engine {
 	svc := catalog.NewService(repo, zaptest.NewLogger(t))
 
 	authenticator, err := auth.NewStaticAuthenticator(map[string]struct {
-		Password  string
-		Principal auth.Principal
+		PasswordHash []byte
+		Principal    auth.Principal
 	}{
 		"admin": {
-			Password:  "secret",
-			Principal: auth.Principal{Subject: "admin", Scopes: []string{"admin", "manager", "viewer"}},
+			PasswordHash: auth.MustHashPassword("secret"),
+			Principal:    auth.Principal{Subject: "admin", Scopes: []string{"admin", "manager", "viewer"}},
 		},
 	})
 	if err != nil {

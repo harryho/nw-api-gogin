@@ -4,7 +4,18 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"golang.org/x/crypto/bcrypt"
 )
+
+func mustHash(t *testing.T, pw string) []byte {
+	t.Helper()
+	h, err := bcrypt.GenerateFromPassword([]byte(pw), bcrypt.MinCost)
+	if err != nil {
+		t.Fatalf("bcrypt: %v", err)
+	}
+	return h
+}
 
 func TestService_IssueAndValidateToken(t *testing.T) {
 	svc := newTestService(t)
@@ -143,12 +154,12 @@ func newTestService(t *testing.T) *service {
 	t.Helper()
 
 	authenticator, err := NewStaticAuthenticator(map[string]struct {
-		Password  string
-		Principal Principal
+		PasswordHash []byte
+		Principal    Principal
 	}{
 		"alice": {
-			Password:  "password",
-			Principal: Principal{Subject: "user-alice", Scopes: []string{"viewer"}},
+			PasswordHash: mustHash(t, "password"),
+			Principal:    Principal{Subject: "user-alice", Scopes: []string{"viewer"}},
 		},
 	})
 	if err != nil {

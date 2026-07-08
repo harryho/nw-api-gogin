@@ -3,6 +3,8 @@ package auth
 import (
 	"context"
 	"errors"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 type Authenticator interface {
@@ -14,13 +16,24 @@ type StaticAuthenticator struct {
 }
 
 type credential struct {
-	Password string
+	PasswordHash []byte
 	Principal
 }
 
+// MustHashPassword returns the bcrypt hash for a plaintext password using
+// bcrypt's default cost. It panics on error and is intended for tests
+// and startup paths only.
+func MustHashPassword(plaintext string) []byte {
+	h, err := bcrypt.GenerateFromPassword([]byte(plaintext), bcrypt.DefaultCost)
+	if err != nil {
+		panic(err)
+	}
+	return h
+}
+
 func NewStaticAuthenticator(users map[string]struct {
-	Password  string
-	Principal Principal
+	PasswordHash []byte
+	Principal    Principal
 }) (*StaticAuthenticator, error) {
 	if len(users) == 0 {
 		return nil, errors.New("users must not be empty")
@@ -28,7 +41,7 @@ func NewStaticAuthenticator(users map[string]struct {
 	creds := make(map[string]credential, len(users))
 	for username, data := range users {
 		creds[username] = credential{
-			Password: data.Password,
+			PasswordHash: data.PasswordHash,
 			Principal: Principal{
 				Subject: data.Principal.Subject,
 				Scopes:  SanitizeScopes(data.Principal.Scopes),
@@ -44,7 +57,7 @@ func (a *StaticAuthenticator) Authenticate(ctx context.Context, username, passwo
 	if !ok {
 		return Principal{}, NewError(ErrorInvalidCredentials, "invalid username or password", nil)
 	}
-	if cred.Password != password {
+	if err := bcrypt.CompareHashAndPassword(cred.PasswordHash, []byte(password)); err != nil {
 		return Principal{}, NewError(ErrorInvalidCredentials, "invalid username or password", nil)
 	}
 	return cred.Principal, nil

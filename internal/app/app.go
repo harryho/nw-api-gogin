@@ -14,6 +14,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 	"go.uber.org/zap"
+	"golang.org/x/crypto/bcrypt"
 
 	"github.com/glb/nw-api-gogin/internal/api"
 	"github.com/glb/nw-api-gogin/internal/auth"
@@ -140,12 +141,18 @@ func New(ctx context.Context) (*Application, error) {
 		appLog.Warn("using default admin credentials; set AUTH_ADMIN_USERNAME and AUTH_ADMIN_PASSWORD for production")
 	}
 
+	authHash, err := resolveAuthAdminHash(authPassword)
+	if err != nil {
+		application.Shutdown(context.Background())
+		return nil, err
+	}
+
 	authenticator, err := auth.NewStaticAuthenticator(map[string]struct {
-		Password  string
-		Principal auth.Principal
+		PasswordHash []byte
+		Principal    auth.Principal
 	}{
 		authUsername: {
-			Password: authPassword,
+			PasswordHash: authHash,
 			Principal: auth.Principal{
 				Subject: authUsername,
 				Scopes:  []string{"admin", "manager", "viewer"},
@@ -296,6 +303,16 @@ func safeCall(ctx context.Context, fn func(context.Context)) {
 		_ = recover()
 	}()
 	fn(ctx)
+}
+
+// resolveAuthAdminHash returns the bcrypt hash for the seeded admin user.
+// If AUTH_ADMIN_PASSWORD_HASH is set, it is used directly (for prod pre-hashed
+// rotation). Otherwise the plaintext AUTH_ADMIN_PASSWORD is hashed at startup.
+func resolveAuthAdminHash(plaintext string) ([]byte, error) {
+	if h := os.Getenv("AUTH_ADMIN_PASSWORD_HASH"); h != "" {
+		return []byte(h), nil
+	}
+	return bcrypt.GenerateFromPassword([]byte(plaintext), bcrypt.DefaultCost)
 }
 
 func envOrDefault(key, fallback string) string {

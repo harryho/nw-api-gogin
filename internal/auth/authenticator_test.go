@@ -1,15 +1,23 @@
 package auth
 
-import "testing"
+import (
+	"testing"
+
+	"golang.org/x/crypto/bcrypt"
+)
 
 func TestStaticAuthenticator_Success(t *testing.T) {
+	hash, err := bcrypt.GenerateFromPassword([]byte("secret"), bcrypt.DefaultCost)
+	if err != nil {
+		t.Fatalf("hash: %v", err)
+	}
 	authenticator, err := NewStaticAuthenticator(map[string]struct {
-		Password  string
-		Principal Principal
+		PasswordHash []byte
+		Principal    Principal
 	}{
 		"admin": {
-			Password:  "secret",
-			Principal: Principal{Subject: "admin", Scopes: []string{"admin", "viewer"}},
+			PasswordHash: hash,
+			Principal:    Principal{Subject: "admin", Scopes: []string{"admin", "viewer"}},
 		},
 	})
 	if err != nil {
@@ -29,13 +37,17 @@ func TestStaticAuthenticator_Success(t *testing.T) {
 }
 
 func TestStaticAuthenticator_InvalidCredentials(t *testing.T) {
+	hash, err := bcrypt.GenerateFromPassword([]byte("secret"), bcrypt.DefaultCost)
+	if err != nil {
+		t.Fatalf("hash: %v", err)
+	}
 	authenticator, err := NewStaticAuthenticator(map[string]struct {
-		Password  string
-		Principal Principal
+		PasswordHash []byte
+		Principal    Principal
 	}{
 		"admin": {
-			Password:  "secret",
-			Principal: Principal{Subject: "admin", Scopes: []string{"admin", "viewer"}},
+			PasswordHash: hash,
+			Principal:    Principal{Subject: "admin", Scopes: []string{"admin", "viewer"}},
 		},
 	})
 	if err != nil {
@@ -61,8 +73,8 @@ func TestStaticAuthenticator_InvalidCredentials(t *testing.T) {
 
 func TestStaticAuthenticator_EmptyUsers(t *testing.T) {
 	if _, err := NewStaticAuthenticator(map[string]struct {
-		Password  string
-		Principal Principal
+		PasswordHash []byte
+		Principal    Principal
 	}{}); err == nil {
 		t.Fatalf("expected error for empty users")
 	}
