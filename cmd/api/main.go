@@ -5,7 +5,7 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/glb/nw-api-gogin/internal/app"
+	"github.com/harryho/nw-api-gogin/internal/app"
 )
 
 func main() {

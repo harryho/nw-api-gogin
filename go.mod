@@ -1,4 +1,4 @@
-module github.com/glb/nw-api-gogin
+module github.com/harryho/nw-api-gogin
 
 go 1.24.0
 

@@ -10,7 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 
-	"github.com/glb/nw-api-gogin/internal/auth"
+	"github.com/harryho/nw-api-gogin/internal/auth"
 )
 
 func init() {

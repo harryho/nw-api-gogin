@@ -10,8 +10,8 @@ import (
 
 	"go.uber.org/zap/zaptest"
 
-	"github.com/glb/nw-api-gogin/internal/catalog"
-	"github.com/glb/nw-api-gogin/internal/db"
+	"github.com/harryho/nw-api-gogin/internal/catalog"
+	"github.com/harryho/nw-api-gogin/internal/db"
 )
 
 func TestCatalog_PostgresIntegration(t *testing.T) {

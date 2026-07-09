@@ -16,9 +16,9 @@ import (
 	"gorm.io/gorm"
 	gormlogger "gorm.io/gorm/logger"
 
-	"github.com/glb/nw-api-gogin/internal/api"
-	"github.com/glb/nw-api-gogin/internal/auth"
-	"github.com/glb/nw-api-gogin/internal/catalog"
+	"github.com/harryho/nw-api-gogin/internal/api"
+	"github.com/harryho/nw-api-gogin/internal/auth"
+	"github.com/harryho/nw-api-gogin/internal/catalog"
 )
 
 func setupRouter(t *testing.T) *gin.Engine {

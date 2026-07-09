@@ -16,14 +16,14 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/glb/nw-api-gogin/internal/api"
-	"github.com/glb/nw-api-gogin/internal/auth"
-	"github.com/glb/nw-api-gogin/internal/catalog"
-	"github.com/glb/nw-api-gogin/internal/db"
-	httpmw "github.com/glb/nw-api-gogin/internal/http/middleware"
-	"github.com/glb/nw-api-gogin/pkg/logger"
-	"github.com/glb/nw-api-gogin/pkg/metrics"
-	"github.com/glb/nw-api-gogin/pkg/telemetry"
+	"github.com/harryho/nw-api-gogin/internal/api"
+	"github.com/harryho/nw-api-gogin/internal/auth"
+	"github.com/harryho/nw-api-gogin/internal/catalog"
+	"github.com/harryho/nw-api-gogin/internal/db"
+	httpmw "github.com/harryho/nw-api-gogin/internal/http/middleware"
+	"github.com/harryho/nw-api-gogin/pkg/logger"
+	"github.com/harryho/nw-api-gogin/pkg/metrics"
+	"github.com/harryho/nw-api-gogin/pkg/telemetry"
 )
 
 // Application represents the fully configured HTTP application.

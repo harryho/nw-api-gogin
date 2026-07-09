@@ -12,8 +12,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/glb/nw-api-gogin/internal/auth"
-	"github.com/glb/nw-api-gogin/internal/catalog"
+	"github.com/harryho/nw-api-gogin/internal/auth"
+	"github.com/harryho/nw-api-gogin/internal/catalog"
 )
 
 func init() {

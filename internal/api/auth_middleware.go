@@ -6,8 +6,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/glb/nw-api-gogin/internal/auth"
-	httpmw "github.com/glb/nw-api-gogin/internal/http/middleware"
+	"github.com/harryho/nw-api-gogin/internal/auth"
+	httpmw "github.com/harryho/nw-api-gogin/internal/http/middleware"
 )
 
 const principalContextKey = "auth.principal"

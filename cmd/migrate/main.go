@@ -10,7 +10,7 @@ import (
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 	_ "github.com/jackc/pgx/v5/stdlib"
 
-	"github.com/glb/nw-api-gogin/internal/db"
+	"github.com/harryho/nw-api-gogin/internal/db"
 )
 
 func main() {

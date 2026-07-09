@@ -5,7 +5,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 
-	"github.com/glb/nw-api-gogin/internal/auth"
+	"github.com/harryho/nw-api-gogin/internal/auth"
 )
 
 type tokenServiceStub struct {
