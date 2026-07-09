@@ -3,9 +3,11 @@
 # Default to a clean toolchain. /usr/local/go 1.26.5 has a corrupted stdlib
 # (overlaid install left duplicate ctrlEmpty/bitsetLSB declarations between
 # map.go and map_swiss.go). GOTOOLCHAIN=go1.24.5 makes Go download and use
-# the 1.24.5 toolchain into GOMODCACHE instead.
+# the 1.24.5 toolchain into GOMODCACHE instead. The `override` keyword
+# is required so this beats any GOTOOLCHAIN inherited from the user's
+# shell (the default `auto` would otherwise keep using the broken local).
 GO ?= go
-GOTOOLCHAIN ?= go1.24.5
+override GOTOOLCHAIN := go1.24.5
 GOLANGCI_LINT ?= golangci-lint
 OAPI_CODEGEN ?= $(shell $(GO) env GOPATH)/bin/oapi-codegen
 BASE_URL ?= http://localhost:8080
