@@ -1,13 +1,19 @@
 .PHONY: lint test build migrate seed smoke coverage fmt generate integration k6-smoke sbom
 
-# Default to a clean toolchain. /usr/local/go 1.26.5 has a corrupted stdlib
-# (overlaid install left duplicate ctrlEmpty/bitsetLSB declarations between
-# map.go and map_swiss.go). GOTOOLCHAIN=go1.24.5 makes Go download and use
-# the 1.24.5 toolchain into GOMODCACHE instead. The `override` keyword
-# is required so this beats any GOTOOLCHAIN inherited from the user's
-# shell (the default `auto` would otherwise keep using the broken local).
-GO ?= go
-override GOTOOLCHAIN := go1.24.5
+# Use the auto-downloaded Go 1.24.5 toolchain from GOMODCACHE if present
+# (it has a clean stdlib). The system's /usr/local/go 1.26.5 has a
+# corrupted stdlib — duplicate ctrlEmpty/bitsetLSB declarations between
+# map.go and map_swiss.go from an overlaid install — and will fail any
+# `go build`/`go test` invocation because the bootstrap reads its own
+# stdlib BEFORE GOTOOLCHAIN re-exec can kick in. Pointing GO directly
+# at the downloaded toolchain bypasses the broken bootstrap entirely.
+GOMODCACHE ?= $(shell go env GOMODCACHE 2>/dev/null)
+TOOLCHAIN_BIN := $(firstword $(wildcard $(GOMODCACHE)/golang.org/toolchain@v0.0.1-go1.24.5.*/bin/go))
+ifeq ($(TOOLCHAIN_BIN),)
+    GO ?= go
+else
+    GO := $(TOOLCHAIN_BIN)
+endif
 GOLANGCI_LINT ?= golangci-lint
 OAPI_CODEGEN ?= $(shell $(GO) env GOPATH)/bin/oapi-codegen
 BASE_URL ?= http://localhost:8080
