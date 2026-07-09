@@ -1,4 +1,4 @@
-.PHONY: lint test build migrate seed smoke coverage fmt generate integration k6-smoke sbom
+.PHONY: lint test build migrate seed smoke coverage fmt generate integration k6-smoke sbom require-env setup-env
 
 # Use the auto-downloaded Go 1.24.5 toolchain from GOMODCACHE if present
 # (it has a clean stdlib). The system's /usr/local/go 1.26.5 has a
@@ -20,25 +20,55 @@ BASE_URL ?= http://localhost:8080
 AUTH_ADMIN_USERNAME ?= admin
 AUTH_ADMIN_PASSWORD ?= changeit
 
+# The project uses `.envrc` with the `direnv` + `dotenv` extension to
+# auto-load `.env` when entering the directory. If `.env` is missing,
+# the migration tool falls back to defaults (Password: "") and fails
+# with a confusing SASL auth error. Guard against that with a clear
+# error message, and provide a `setup-env` target that creates `.env`.
+ENV_FILE := .env
+ENV_EXAMPLE := .env.example
+
+# Convenience target: create .env from .env.example if it doesn't exist.
+# Idempotent — won't overwrite an existing .env.
+setup-env:
+	@if [ -f $(ENV_FILE) ]; then \
+		echo "$(ENV_FILE) already exists, skipping"; \
+	else \
+		cp $(ENV_EXAMPLE) $(ENV_FILE); \
+		echo "Created $(ENV_FILE) from $(ENV_EXAMPLE)"; \
+		echo "If you use direnv, .env will be auto-loaded when you cd into this repo."; \
+		echo "Otherwise: source .env manually or set the env vars inline."; \
+	fi
+
+# Guard: fail fast if .env is missing with a clear actionable message.
+require-env:
+	@test -f $(ENV_FILE) || { \
+		echo "ERROR: $(ENV_FILE) not found."; \
+		echo "Run: make setup-env   # or: cp $(ENV_EXAMPLE) $(ENV_FILE)"; \
+		echo "The .envrc uses 'direnv' + 'dotenv' to auto-load it; without it the"; \
+		echo "migration tool defaults to Password: \"\" and fails with SASL auth."; \
+		exit 1; \
+	}
+
 fmt:
 	gofmt -w $(shell find . -name '*.go' -not -path './vendor/*')
 
 lint: fmt
 	$(GOLANGCI_LINT) run ./...
 
-test:
+test: require-env
 	$(GO) test ./...
 
-coverage:
+coverage: require-env
 	$(GO) test ./... -coverprofile=coverage.out
 
-build:
+build: require-env
 	$(GO) build ./cmd/api
 
-migrate:
+migrate: require-env
 	$(GO) run ./cmd/migrate --action up
 
-seed:
+seed: require-env
 	$(GO) run ./cmd/migrate --action seed
 
 # Lightweight smoke check: /healthz, /auth/token, /categories.
