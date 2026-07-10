@@ -8,7 +8,9 @@
 
 # Go coverage and test outputs
 coverage.out
+coverage.html
 **/coverage.out
+**/coverage.html
 *.test
 
 # Environment files
