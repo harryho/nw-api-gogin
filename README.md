@@ -52,6 +52,30 @@ make generate   # regenerate internal/api/api.gen.go from api/openapi.yaml
 make sbom       # cyclonedx SBOM
 ```
 
+## Test coverage
+
+`make coverage` runs all tests with `-coverprofile=coverage.out` and prints the per-package coverage summary inline. `coverage.out` and `coverage.html` are gitignored (regenerated on each run).
+
+```bash
+make coverage                                       # run tests, write coverage.out
+go tool cover -func=coverage.out                     # per-function summary in terminal
+go tool cover -html=coverage.out -o coverage.html   # HTML report; open in a browser
+```
+
+Example output of `make coverage`:
+
+```
+ok  github.com/harryho/nw-api-gogin/internal/api           0.020s coverage: 83.5%
+ok  github.com/harryho/nw-api-gogin/internal/auth          0.204s coverage: 82.4%
+ok  github.com/harryho/nw-api-gogin/internal/catalog       0.239s coverage: 86.4%
+ok  github.com/harryho/nw-api-gogin/internal/http/middleware  0.012s coverage: 89.8%
+ok  github.com/harryho/nw-api-gogin/pkg/logger             0.009s  coverage: 73.1%
+ok  github.com/harryho/nw-api-gogin/pkg/metrics            0.012s  coverage: 92.3%
+total:                                                       (statements)  67.4%
+```
+
+Packages without tests (`internal/app`, `internal/db`, `pkg/telemetry`, `cmd/*`) are reached through integration tests rather than unit tests — see `make integration`.
+
 ## Security
 
 See [SECURITY.md](./SECURITY.md). Default local credentials are dev-only; override before any non-local deployment.
