@@ -39,7 +39,6 @@ All config is via environment variables. See `.env.example`. Notable env vars:
 
 This is a plain HTTP service. Build the binary with `make build` (output: `./build/app`) or the Docker image with `docker build -t nw-api .`.
 
-For cloud-specific deployment recipes (AWS / Azure / GCP) and cost comparisons, see the local-only deployment guide (kept out of git). Recommended: **GCP Cloud Run + Cloud SQL `db-f1-micro`** (~$10-15/mo at low traffic). Runner-up: **AWS Lightsail** at ~$20/mo flat.
 
 ## Development
 
@@ -60,18 +59,6 @@ make sbom       # cyclonedx SBOM
 make coverage                                       # run tests, write coverage.out
 go tool cover -func=coverage.out                     # per-function summary in terminal
 go tool cover -html=coverage.out -o coverage.html   # HTML report; open in a browser
-```
-
-Example output of `make coverage`:
-
-```
-ok  github.com/harryho/nw-api-gogin/internal/api           0.020s coverage: 83.5%
-ok  github.com/harryho/nw-api-gogin/internal/auth          0.204s coverage: 82.4%
-ok  github.com/harryho/nw-api-gogin/internal/catalog       0.239s coverage: 86.4%
-ok  github.com/harryho/nw-api-gogin/internal/http/middleware  0.012s coverage: 89.8%
-ok  github.com/harryho/nw-api-gogin/pkg/logger             0.009s  coverage: 73.1%
-ok  github.com/harryho/nw-api-gogin/pkg/metrics            0.012s  coverage: 92.3%
-total:                                                       (statements)  67.4%
 ```
 
 Packages without tests (`internal/app`, `internal/db`, `pkg/telemetry`, `cmd/*`) are reached through integration tests rather than unit tests — see `make integration`.
