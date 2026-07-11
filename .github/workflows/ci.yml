@@ -34,7 +34,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v6
         with:
-          go-version: "1.24.5"
+          go-version-file: go.mod
       - name: Ensure gofmt
         run: |
           files=$(gofmt -l .)
@@ -43,9 +43,9 @@ jobs:
             exit 1
           fi
       - name: Install golangci-lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v9
         with:
-          version: v1.64.8
+          version: v2.12.2
           args: --timeout=5m
       - name: Run migrations
         run: go run ./cmd/migrate --action up
@@ -71,7 +71,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v6
         with:
-          go-version: "1.24.5"
+          go-version-file: go.mod
       - name: Start dependencies
         run: docker compose up -d db otel-collector prometheus
       - name: Wait for postgres
