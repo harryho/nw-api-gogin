@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"testing"
 
 	"golang.org/x/crypto/bcrypt"
@@ -24,7 +25,7 @@ func TestStaticAuthenticator_Success(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	principal, err := authenticator.Authenticate(nil, "admin", "secret")
+	principal, err := authenticator.Authenticate(context.TODO(), "admin", "secret")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -54,7 +55,7 @@ func TestStaticAuthenticator_InvalidCredentials(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	_, err = authenticator.Authenticate(nil, "admin", "wrong")
+	_, err = authenticator.Authenticate(context.TODO(), "admin", "wrong")
 	if err == nil {
 		t.Fatalf("expected error for wrong password")
 	}
@@ -62,7 +63,7 @@ func TestStaticAuthenticator_InvalidCredentials(t *testing.T) {
 		t.Fatalf("expected invalid credentials error, got %v", err)
 	}
 
-	_, err = authenticator.Authenticate(nil, "unknown", "secret")
+	_, err = authenticator.Authenticate(context.TODO(), "unknown", "secret")
 	if err == nil {
 		t.Fatalf("expected error for unknown user")
 	}

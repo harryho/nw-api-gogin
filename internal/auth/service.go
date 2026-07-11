@@ -126,7 +126,7 @@ func (s *service) ValidateToken(ctx context.Context, tokenString string) (*Claim
 	if !parsedToken.Valid {
 		return nil, NewError(ErrorInvalidToken, "invalid token", nil)
 	}
-	if len(s.cfg.Issuer) > 0 && claims.RegisteredClaims.Issuer != s.cfg.Issuer {
+	if len(s.cfg.Issuer) > 0 && claims.Issuer != s.cfg.Issuer {
 		return nil, NewError(ErrorInvalidToken, "invalid issuer", nil)
 	}
 	if len(s.cfg.Audience) > 0 {
@@ -149,7 +149,7 @@ func (s *service) getKeyForToken(ctx context.Context, kid string) (SigningKey, e
 
 func (s *service) verifyAudience(claims *Claims) bool {
 	for _, expected := range s.cfg.Audience {
-		for _, actual := range []string(claims.RegisteredClaims.Audience) {
+		for _, actual := range []string(claims.Audience) {
 			if actual == expected {
 				return true
 			}

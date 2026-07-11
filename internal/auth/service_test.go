@@ -35,8 +35,8 @@ func TestService_IssueAndValidateToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("validate token failed: %v", err)
 	}
-	if claims.RegisteredClaims.Subject != "user-alice" {
-		t.Fatalf("expected subject user-alice, got %q", claims.RegisteredClaims.Subject)
+	if claims.Subject != "user-alice" {
+		t.Fatalf("expected subject user-alice, got %q", claims.Subject)
 	}
 	if len(claims.Scopes) != 1 || claims.Scopes[0] != "viewer" {
 		t.Fatalf("unexpected scopes: %v", claims.Scopes)
