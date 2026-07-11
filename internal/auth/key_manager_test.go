@@ -1,6 +1,9 @@
 package auth
 
-import "testing"
+import (
+	"context"
+	"testing"
+)
 
 func TestHMACKeyManager(t *testing.T) {
 	manager, err := NewHMACKeyManager([]byte("secret"), "key1")
@@ -8,7 +11,7 @@ func TestHMACKeyManager(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	key, err := manager.Current(nil)
+	key, err := manager.Current(context.TODO())
 	if err != nil {
 		t.Fatalf("failed to get current key: %v", err)
 	}
@@ -16,7 +19,7 @@ func TestHMACKeyManager(t *testing.T) {
 		t.Fatalf("expected key1, got %q", key.ID)
 	}
 
-	retrieved, err := manager.Get(nil, "key1")
+	retrieved, err := manager.Get(context.TODO(), "key1")
 	if err != nil {
 		t.Fatalf("failed to get key by id: %v", err)
 	}
@@ -24,7 +27,7 @@ func TestHMACKeyManager(t *testing.T) {
 		t.Fatalf("expected retrieved key to match current key")
 	}
 
-	if _, err := manager.Get(nil, "unknown"); err == nil {
+	if _, err := manager.Get(context.TODO(), "unknown"); err == nil {
 		t.Fatalf("expected error for unknown key id")
 	}
 }
