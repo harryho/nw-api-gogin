@@ -76,7 +76,7 @@ func TestRequestIDMiddlewarePreservesExistingHeader(t *testing.T) {
 }
 
 func TestRequestIDFromContextHandlesMissingValues(t *testing.T) {
-	if RequestIDFromContext(nil) != "" {
+	if RequestIDFromContext(context.TODO()) != "" {
 		t.Fatalf("expected empty id for nil context")
 	}
 	if RequestIDFromContext(context.Background()) != "" {
