@@ -1,6 +1,6 @@
 .PHONY: lint test build migrate seed smoke coverage fmt generate integration k6-smoke sbom require-env setup-env
 
-# Use the auto-downloaded Go 1.24.5 toolchain from GOMODCACHE if present
+# Use the auto-downloaded Go 1.25.0 toolchain from GOMODCACHE if present
 # (it has a clean stdlib). The system's /usr/local/go 1.26.5 has a
 # corrupted stdlib — duplicate ctrlEmpty/bitsetLSB declarations between
 # map.go and map_swiss.go from an overlaid install — and will fail any
@@ -8,7 +8,7 @@
 # stdlib BEFORE GOTOOLCHAIN re-exec can kick in. Pointing GO directly
 # at the downloaded toolchain bypasses the broken bootstrap entirely.
 GOMODCACHE ?= $(shell go env GOMODCACHE 2>/dev/null)
-TOOLCHAIN_BIN := $(firstword $(wildcard $(GOMODCACHE)/golang.org/toolchain@v0.0.1-go1.24.5.*/bin/go))
+TOOLCHAIN_BIN := $(firstword $(wildcard $(GOMODCACHE)/golang.org/toolchain@v0.0.1-go1.25.0.*/bin/go))
 ifeq ($(TOOLCHAIN_BIN),)
     GO ?= go
 else

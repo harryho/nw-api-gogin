@@ -4,7 +4,7 @@ A small reference REST API providing Category / Product / Supplier management on
 
 ## Stack
 
-- Go 1.24.5 + Gin
+- Go 1.25.0 + Gin
 - GORM (PostgreSQL driver)
 - JWT auth (HMAC-SHA256, bcrypt-hashed passwords)
 - OpenTelemetry tracing + Prometheus metrics
