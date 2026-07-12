@@ -15,6 +15,7 @@ services:
         condition: service_started
     environment:
       - DATABASE_HOST=db
+      - DATABASE_PORT=5432
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
     command: ["./app"]
   db:
