@@ -1,6 +1,6 @@
 module github.com/harryho/nw-api-gogin
 
-go 1.25.0
+go 1.26.0
 
 require (
 	github.com/getkin/kin-openapi v0.149.0
@@ -19,7 +19,7 @@ require (
 	go.opentelemetry.io/otel/sdk v1.46.0
 	go.uber.org/zap v1.28.0
 	golang.org/x/crypto v0.55.0
-	golang.org/x/time v0.15.0
+	golang.org/x/time v0.16.0
 	gorm.io/driver/postgres v1.6.2
 	gorm.io/driver/sqlite v1.6.0
 	gorm.io/gorm v1.31.2
