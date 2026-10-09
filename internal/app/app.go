@@ -202,15 +202,10 @@ func New(ctx context.Context) (*Application, error) {
 		return "", nil
 	}))
 
-	swagger, err := api.GetSwagger()
-	if err != nil {
-		application.Shutdown(context.Background())
-		return nil, err
-	}
-	swagger.Servers = nil
-
-	router.Use(ginmiddleware.OapiRequestValidator(swagger))
-
+	// Infrastructure endpoints are not part of the OpenAPI contract, so they
+	// must be registered BEFORE the validator middleware below: Gin applies
+	// router.Use middleware only to routes registered after the Use call,
+	// and OapiRequestValidator aborts any path missing from the spec with 404.
 	router.GET("/healthz", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
@@ -227,6 +222,15 @@ func New(ctx context.Context) (*Application, error) {
 	})
 
 	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
+
+	swagger, err := api.GetSwagger()
+	if err != nil {
+		application.Shutdown(context.Background())
+		return nil, err
+	}
+	swagger.Servers = nil
+
+	router.Use(ginmiddleware.OapiRequestValidator(swagger))
 
 	handler := api.NewHandler(catalogService, tokenService)
 	api.RegisterHandlersWithOptions(router, handler, api.GinServerOptions{
