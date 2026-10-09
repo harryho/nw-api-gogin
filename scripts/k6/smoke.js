@@ -15,12 +15,16 @@ const ADMIN_USER = __ENV.AUTH_ADMIN_USERNAME || 'admin';
 const ADMIN_PASS = __ENV.AUTH_ADMIN_PASSWORD || 'changeit';
 
 function authenticate(scope) {
-  const payload = JSON.stringify({
-    username: ADMIN_USER,
-    password: ADMIN_PASS,
-    scope,
-  });
-  const res = http.post(`${BASE_URL}/auth/token`, payload, {
+  // Omitting scope mints a token with all scopes granted to the user, the
+  // same convention as internal/catalog/integration_test.go. oapi-codegen's
+  // gin template collapses the spec's alternative security requirements
+  // (admin OR manager) to the last one listed, so requesting a narrowed
+  // 'admin' scope would fail writes that effectively require 'manager'.
+  const body = { username: ADMIN_USER, password: ADMIN_PASS };
+  if (scope) {
+    body.scope = scope;
+  }
+  const res = http.post(`${BASE_URL}/auth/token`, JSON.stringify(body), {
     headers: { 'Content-Type': 'application/json' },
   });
   check(res, {
@@ -39,7 +43,7 @@ export default function () {
     'list categories success': (r) => r.status === 200,
   });
 
-  const adminToken = authenticate('admin');
+  const adminToken = authenticate();
   const createRes = http.post(
     `${BASE_URL}/categories`,
     JSON.stringify({ name: `k6 smoke ${Date.now()}` }),

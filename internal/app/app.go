@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/getkin/kin-openapi/openapi3filter"
 	"github.com/gin-gonic/gin"
 	ginmiddleware "github.com/oapi-codegen/gin-middleware"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -202,15 +203,10 @@ func New(ctx context.Context) (*Application, error) {
 		return "", nil
 	}))
 
-	swagger, err := api.GetSwagger()
-	if err != nil {
-		application.Shutdown(context.Background())
-		return nil, err
-	}
-	swagger.Servers = nil
-
-	router.Use(ginmiddleware.OapiRequestValidator(swagger))
-
+	// Infrastructure endpoints are not part of the OpenAPI contract, so they
+	// must be registered BEFORE the validator middleware below: Gin applies
+	// router.Use middleware only to routes registered after the Use call,
+	// and OapiRequestValidator aborts any path missing from the spec with 404.
 	router.GET("/healthz", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
@@ -227,6 +223,25 @@ func New(ctx context.Context) (*Application, error) {
 	})
 
 	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
+
+	swagger, err := api.GetSwagger()
+	if err != nil {
+		application.Shutdown(context.Background())
+		return nil, err
+	}
+	swagger.Servers = nil
+
+	// The spec documents bearer security, but credential and scope enforcement
+	// lives in api.AuthMiddleware, driven by the scope sets the generated
+	// wrappers store in the Gin context. kin-openapi rejects every secured
+	// request with ErrAuthenticationServiceMissing (400) unless an
+	// AuthenticationFunc is configured, so make the validator defer
+	// authentication to the application middleware.
+	router.Use(ginmiddleware.OapiRequestValidatorWithOptions(swagger, &ginmiddleware.Options{
+		Options: openapi3filter.Options{
+			AuthenticationFunc: openapi3filter.NoopAuthenticationFunc,
+		},
+	}))
 
 	handler := api.NewHandler(catalogService, tokenService)
 	api.RegisterHandlersWithOptions(router, handler, api.GinServerOptions{
