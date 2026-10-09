@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/getkin/kin-openapi/openapi3filter"
 	"github.com/gin-gonic/gin"
 	ginmiddleware "github.com/oapi-codegen/gin-middleware"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -230,7 +231,17 @@ func New(ctx context.Context) (*Application, error) {
 	}
 	swagger.Servers = nil
 
-	router.Use(ginmiddleware.OapiRequestValidator(swagger))
+	// The spec documents bearer security, but credential and scope enforcement
+	// lives in api.AuthMiddleware, driven by the scope sets the generated
+	// wrappers store in the Gin context. kin-openapi rejects every secured
+	// request with ErrAuthenticationServiceMissing (400) unless an
+	// AuthenticationFunc is configured, so make the validator defer
+	// authentication to the application middleware.
+	router.Use(ginmiddleware.OapiRequestValidatorWithOptions(swagger, &ginmiddleware.Options{
+		Options: openapi3filter.Options{
+			AuthenticationFunc: openapi3filter.NoopAuthenticationFunc,
+		},
+	}))
 
 	handler := api.NewHandler(catalogService, tokenService)
 	api.RegisterHandlersWithOptions(router, handler, api.GinServerOptions{
