@@ -967,7 +967,7 @@ components:
                     type: string
     TokenRequest:
       type: object
-      required: [username, password, scope]
+      required: [username, password]
       properties:
         username:
           type: string
