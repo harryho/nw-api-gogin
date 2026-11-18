@@ -134,10 +134,10 @@ github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 h1:C3w9PqII01/Oq
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822/go.mod h1:+n7T8mK8HuQTcFwEeznm/DIxMOiR9yIdICNftLE1DvQ=
 github.com/oapi-codegen/gin-middleware v1.2.1 h1:kBlEbQag0zAZrrFYCmDCs7ea/vOoEvlZgoug6sP1cSo=
 github.com/oapi-codegen/gin-middleware v1.2.1/go.mod h1:dQNSEXipO8lfd/QpTxQ5cBYfojMqetGki4L1A0Vxxvg=
-github.com/oapi-codegen/nullable v1.1.0 h1:eAh8JVc5430VtYVnq00Hrbpag9PFRGWLjxR1/3KntMs=
-github.com/oapi-codegen/nullable v1.1.0/go.mod h1:KUZ3vUzkmEKY90ksAmit2+5juDIhIZhfDl+0PwOQlFY=
-github.com/oapi-codegen/runtime v1.8.0 h1:RJzEgQSJQADEPaG1cYuSCKYai/cCVRE2xnkrqhJs/3c=
-github.com/oapi-codegen/runtime v1.8.0/go.mod h1:GwV7hC2hviaMzj+ITfHVRESK5J2W/GefVwIND/bMGvU=
+github.com/oapi-codegen/nullable v1.2.0 h1:VflFkDW980KhBPiFF7nWSyjg+r4Obqj8lXipV0UkP5w=
+github.com/oapi-codegen/nullable v1.2.0/go.mod h1:KUZ3vUzkmEKY90ksAmit2+5juDIhIZhfDl+0PwOQlFY=
+github.com/oapi-codegen/runtime v1.9.0 h1:YZ9DxX8ZQ8ZmNW1xAtOqa3MQ9AfdcUTcoBakvhQKHno=
+github.com/oapi-codegen/runtime v1.9.0/go.mod h1:jDd+iW9sT//NMDhIne8laRtI2Zq+z1QmUNidsql+M64=
 github.com/opencontainers/go-digest v1.0.0 h1:apOUWs51W5PlhuyGyz9FCeeBIOUDA/6nW8Oi/yOhh5U=
 github.com/opencontainers/go-digest v1.0.0/go.mod h1:0JzlMkj0TRzQZfJkVvzbP0HBR3IKzErnv2BNG4W4MAM=
 github.com/opencontainers/image-spec v1.1.1 h1:y0fUlFfIZhPF1W537XOLg0/fcx6zcHCJwooC2xJA040=
